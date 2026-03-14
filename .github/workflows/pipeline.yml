@@ -30,8 +30,9 @@ jobs:
           DB_PORT:     ${{ secrets.DB_PORT }}
         run: python scheduler.py --run-now
 
-      - name: Publicar dashboard
-        uses: actions/upload-artifact@v4
+      - name: Publicar no GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
         with:
-          name: dashboard
-          path: brasileirao_dashboard.html
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: .
+          include_files: brasileirao_dashboard.html
