@@ -21,8 +21,6 @@ env/
 venv/
 .venv/
 
-# PDF
-*.pdf
 
 # OS
 .DS_Store
