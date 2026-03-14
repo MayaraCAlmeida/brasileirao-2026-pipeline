@@ -1,0 +1,11 @@
+# Brasileirão 2026 Pipeline — Dependências
+
+# pip install -r requirements.txt
+requests==2.31.0
+beautifulsoup4==4.12.3
+pandas==2.2.0
+numpy==1.26.4
+sqlalchemy==2.0.27
+psycopg2-binary==2.9.9
+python-dotenv==1.0.1
+apscheduler==3.10.4
