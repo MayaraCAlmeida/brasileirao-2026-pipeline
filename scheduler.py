@@ -1,7 +1,11 @@
 """
 Brasileirão 2026 — Data Pipeline
-Orquestra o pipeline completo e agenda execução diária
+Scheduler: orquestra o pipeline completo e agenda execução diária
 
+Uso:
+  python scheduler.py --run-now          # executa agora
+  python scheduler.py                    # agenda para 06:00 BRT todo dia
+  python scheduler.py --hour 8 --minute 30
 """
 
 import sys
@@ -36,7 +40,7 @@ def run_full_pipeline():
 
     try:
         log.info("[1/5] Extraindo dados da CBF...")
-        from brasileirao_pipeline import run as extract
+        from extract_data import run as extract
 
         extract()
 
@@ -56,7 +60,7 @@ def run_full_pipeline():
         load()
 
         log.info("[5/5] Gerando dashboard HTML...")
-        from dashboard import run as dash
+        from generate_dashboard import run as dash
 
         dash()
 
