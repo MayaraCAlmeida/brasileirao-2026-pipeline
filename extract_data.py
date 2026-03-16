@@ -3,6 +3,7 @@ Brasileirao 2026 - Data Pipeline
 - Tabela de classificação: CBF (scraping)
 - Artilharia: CBF (scraping)
 - Partidas: PDF oficial da CBF (Tabela Detalhada)
+- Placares: CBF (scraping) — complementa o PDF com resultados já disponíveis
 
 Dependências: pip install requests beautifulsoup4 pdfplumber pandas
 """
@@ -33,6 +34,12 @@ HEADERS = {
     )
 }
 CBF_URL = "https://www.cbf.com.br/futebol-brasileiro/tabelas/campeonato-brasileiro/serie-a/2026"
+
+# URL base para buscar placares por rodada
+# A CBF usa esse padrão para retornar os jogos de cada rodada em JSON
+CBF_RODADA_URL = (
+    "https://www.cbf.com.br/futebol-brasileiro/campeonatos/jogos/serie-a/2026/{rodada}"
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -122,9 +129,7 @@ def extract_tabela():
 
 
 # ─────────────────────────────────────────────────────────
-# ARTILHARIA (CBF scraping) — CORRIGIDO
-# Cada artilheiro está numa <table> com 5 <td>s:
-#   [posicao] [link: ClubeNomeJogador] [gols] [clube] [vazio]
+# ARTILHARIA (CBF scraping)
 # ─────────────────────────────────────────────────────────
 def extract_artilharia():
     log.info("► Artilharia (CBF)...")
@@ -146,7 +151,6 @@ def extract_artilharia():
             link = tds[1].find("a")
             raw = link.get_text(strip=True) if link else tds[1].get_text(strip=True)
 
-            # Clube está na imagem de tds[3]: <img title="Botafogo-RJ" />
             img = tds[3].find("img")
             if img and img.get("title"):
                 clube = img["title"].strip()
@@ -156,7 +160,6 @@ def extract_artilharia():
                     else re.sub(r"^.+?-[A-Z]{2}\s*", "", raw).strip()
                 )
             else:
-                # fallback: extrai do próprio raw via regex
                 m = re.match(r"^(.+?-[A-Z]{2})\s*(.*?)$", raw)
                 if m:
                     clube = m.group(1).strip()
@@ -166,7 +169,7 @@ def extract_artilharia():
                     nome = raw
 
             if not nome:
-                nome = raw  # último recurso
+                nome = raw
 
             rows.append(
                 {
@@ -185,7 +188,6 @@ def extract_artilharia():
 
 # ─────────────────────────────────────────────────────────
 # PARTIDAS (PDF oficial da CBF)
-# Colunas do PDF: REF | ROD | DATA-DIA | HORA | JOGO | ESTÁDIO | CIDADE | UF | TV...
 # ─────────────────────────────────────────────────────────
 def extract_partidas():
     log.info(f"► Partidas (PDF: {os.path.basename(PDF_PATH)})...")
@@ -265,6 +267,110 @@ def extract_partidas():
 
 
 # ─────────────────────────────────────────────────────────
+# PLACARES VIA SCRAPING (CBF — complementa o PDF)
+#
+# Estratégia:
+#   1. Itera pelas rodadas que já existem no PDF (1 até max_rodada)
+#   2. Para cada rodada, acessa a página da CBF e tenta extrair
+#      os placares das partidas finalizadas
+#   3. Faz merge com o DataFrame do PDF usando ref como chave,
+#      sobrescrevendo gols_mandante/gols_visitante onde encontrar
+#
+# A CBF exibe os jogos de cada rodada em blocos como:
+#   <div class="clube-mandante"> ... </div>
+#   <div class="placar"> 2 x 1 </div>
+#   <div class="clube-visitante"> ... </div>
+# O ref (número do jogo) aparece como atributo data-jogo ou no link.
+# Como o HTML da CBF muda com frequência, a função tem dois níveis
+# de fallback: extração por data-jogo e extração posicional.
+# ─────────────────────────────────────────────────────────
+def scrape_placares_cbf(df_partidas: pd.DataFrame) -> pd.DataFrame:
+    """
+    Recebe o DataFrame completo de partidas (vindo do PDF) e tenta
+    atualizar gols_mandante / gols_visitante com os resultados já
+    publicados no site da CBF.
+
+    Retorna o DataFrame com os placares preenchidos onde disponíveis.
+    """
+    log.info("► Buscando placares no site da CBF...")
+
+    df = df_partidas.copy()
+    # Garante que ref é string para bater com o que o site retorna
+    df["ref"] = df["ref"].astype(str).str.strip()
+
+    rodadas_disponiveis = sorted(df["rodada"].dropna().unique().astype(int))
+    placares_encontrados = 0
+
+    for rodada in rodadas_disponiveis:
+        url = CBF_RODADA_URL.format(rodada=rodada)
+        try:
+            soup = get_soup(url)
+        except Exception as e:
+            log.warning(f"  ⚠ Rodada {rodada}: erro ao acessar ({e})")
+            continue
+
+        # ── Tentativa 1: blocos com data-jogo ────────────────────
+        # A CBF costuma marcar cada jogo com data-jogo="REF"
+        jogos_html = soup.find_all(attrs={"data-jogo": True})
+
+        if jogos_html:
+            for bloco in jogos_html:
+                ref_html = str(bloco.get("data-jogo", "")).strip()
+
+                # Procura placar dentro do bloco — padrão: "2 x 1" ou "2-1"
+                texto = bloco.get_text(" ", strip=True)
+                m_placar = re.search(r"(\d+)\s*[xX\-]\s*(\d+)", texto)
+                if not m_placar:
+                    continue
+
+                gm, gv = m_placar.group(1), m_placar.group(2)
+
+                mask = df["ref"] == ref_html
+                if mask.any():
+                    df.loc[mask, "gols_mandante"] = gm
+                    df.loc[mask, "gols_visitante"] = gv
+                    placares_encontrados += mask.sum()
+
+        else:
+            # ── Tentativa 2: extração posicional por tabela ───────
+            # Busca todas as tabelas/linhas com padrão "Time A X-Y Time B"
+            for tr in soup.find_all("tr"):
+                tds = tr.find_all("td")
+                if len(tds) < 3:
+                    continue
+
+                texto_linha = tr.get_text(" ", strip=True)
+
+                # Verifica se há placar no formato "N x N" ou "N-N"
+                m_placar = re.search(r"(\d+)\s*[xX\-]\s*(\d+)", texto_linha)
+                if not m_placar:
+                    continue
+
+                # Tenta capturar o ref na linha (número isolado de 3 dígitos)
+                m_ref = re.search(r"\b(0\d{2}|\d{3})\b", texto_linha)
+                if not m_ref:
+                    continue
+
+                ref_html = m_ref.group(1).lstrip("0") or "0"
+                gm, gv = m_placar.group(1), m_placar.group(2)
+
+                mask = df["ref"] == ref_html
+                if mask.any():
+                    df.loc[mask, "gols_mandante"] = gm
+                    df.loc[mask, "gols_visitante"] = gv
+                    placares_encontrados += mask.sum()
+
+        time.sleep(0.5)  # respeita o rate limit da CBF entre rodadas
+
+    atualizados = df["gols_mandante"].notna().sum()
+    log.info(
+        f"  ✔ Placares: {placares_encontrados} atualizações via scraping | "
+        f"{atualizados} partidas com placar no total"
+    )
+    return df
+
+
+# ─────────────────────────────────────────────────────────
 # MAIN
 # ─────────────────────────────────────────────────────────
 def run():
@@ -273,21 +379,36 @@ def run():
     log.info(f"  Saída: {RAW_DIR}")
     log.info("=" * 60)
 
-    steps = [
+    results = {}
+
+    # Etapas independentes de scraping
+    for name, func in [
         ("tabela", extract_tabela),
         ("artilharia", extract_artilharia),
-        ("partidas", extract_partidas),
-    ]
-
-    results = {}
-    for name, func in steps:
+    ]:
         try:
             results[name] = func()
         except Exception as e:
             log.error(f"  ✘ Erro em '{name}': {e}")
 
+    # Partidas: PDF + complemento de placares via scraping
+    try:
+        df_partidas = extract_partidas()
+
+        # Tenta enriquecer com placares do site (falha silenciosa: mantém o PDF)
+        try:
+            df_partidas = scrape_placares_cbf(df_partidas)
+        except Exception as e:
+            log.warning(f"  ⚠ scrape_placares_cbf falhou, usando só o PDF: {e}")
+
+        save_raw(df_partidas, "partidas")
+        results["partidas"] = df_partidas
+
+    except Exception as e:
+        log.error(f"  ✘ Erro em 'partidas': {e}")
+
     log.info("=" * 60)
-    log.info(f"  Concluído. {len(results)}/{len(steps)} etapas com sucesso.")
+    log.info(f"  Concluído. {len(results)}/3 etapas com sucesso.")
     log.info("=" * 60)
     return results
 
