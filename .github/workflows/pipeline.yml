@@ -22,7 +22,9 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Instalar Playwright + Chromium
-        run: playwright install chromium --with-deps
+        run: |
+          playwright install chromium
+          playwright install-deps chromium
 
       - name: Rodar pipeline
         env:
