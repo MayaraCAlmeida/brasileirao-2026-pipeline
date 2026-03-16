@@ -262,101 +262,119 @@ def extract_partidas():
 
 
 # ─────────────────────────────────────────────────────────
-# PLACARES VIA SCRAPING (CBF — complementa o PDF)
+# PLACARES VIA PLAYWRIGHT (CBF — complementa o PDF)
 #
-# Estratégia:
-#   Os placares de todas as rodadas ficam na página principal da CBF
-#   (CBF_URL), renderizados via JavaScript em blocos de jogos.
-#   O requests/BS4 consegue pegar o HTML estático que já vem pré-
-#   renderizado com os resultados das partidas finalizadas.
+# O site da CBF renderiza os jogos via JavaScript, então requests
+# + BeautifulSoup só vê HTML estático sem placares. O Playwright
+# abre um browser headless real, espera o JS carregar e extrai
+# o HTML completo com todos os resultados.
 #
-#   Cada jogo aparece no HTML com links para os times e um placar
-#   no formato "N x N". O ref do jogo está no atributo href do link
-#   de detalhes do jogo ou em data-* attributes.
-#
-#   Fallback: se não achar via data-attributes, extrai por posição
-#   nos blocos de texto usando o padrão mandante + placar + visitante.
+# Estratégia de extração (em cascata):
+#   1. data-jogo attribute nos blocos de jogo
+#   2. Links /jogos/campeonato-brasileiro/REF
+#   3. Match por nome de time no texto renderizado
 # ─────────────────────────────────────────────────────────
 def scrape_placares_cbf(df_partidas: pd.DataFrame) -> pd.DataFrame:
     """
     Recebe o DataFrame completo de partidas (vindo do PDF) e tenta
     atualizar gols_mandante / gols_visitante com os resultados já
-    publicados no site da CBF (página principal da competição).
+    publicados no site da CBF, usando Playwright para renderizar o JS.
 
     Retorna o DataFrame com os placares preenchidos onde disponíveis.
     """
-    log.info("► Buscando placares no site da CBF...")
+    log.info("► Buscando placares no site da CBF (Playwright)...")
 
     df = df_partidas.copy()
     df["ref"] = df["ref"].astype(str).str.strip()
-
-    try:
-        soup = get_soup(CBF_URL)
-    except Exception as e:
-        log.warning(f"  ⚠ Não foi possível acessar a CBF: {e}")
-        return df
-
     placares_encontrados = 0
 
-    # ── Tentativa 1: blocos com data-jogo ────────────────────────
-    # A CBF marca cada bloco de jogo com data-jogo="REF"
-    jogos_html = soup.find_all(attrs={"data-jogo": True})
-    if jogos_html:
-        for bloco in jogos_html:
-            ref_html = str(bloco.get("data-jogo", "")).strip().lstrip("0") or "0"
-            texto = bloco.get_text(" ", strip=True)
-            m = re.search(r"(\d+)\s*[xX]\s*(\d+)", texto)
-            if not m:
-                continue
-            gm, gv = m.group(1), m.group(2)
-            mask = df["ref"] == ref_html
-            if mask.any():
-                df.loc[mask, "gols_mandante"] = gm
-                df.loc[mask, "gols_visitante"] = gv
-                placares_encontrados += int(mask.sum())
-        log.info(f"  → Método data-jogo: {placares_encontrados} placares encontrados")
+    try:
+        from playwright.sync_api import sync_playwright
 
-    # ── Tentativa 2: links de detalhe do jogo ────────────────────
-    # Alguns layouts da CBF usam href="/futebol-brasileiro/jogos/campeonato-brasileiro/REF"
-    if placares_encontrados == 0:
-        for a in soup.find_all(
-            "a", href=re.compile(r"/jogos/campeonato-brasileiro/(\d+)")
-        ):
-            m_ref = re.search(r"/jogos/campeonato-brasileiro/(\d+)", a["href"])
-            if not m_ref:
-                continue
-            ref_html = m_ref.group(1).lstrip("0") or "0"
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page(
+                user_agent=(
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/122.0.0.0 Safari/537.36"
+                )
+            )
 
-            # O placar costuma estar no elemento pai ou irmão
-            container = a.find_parent() or a
-            texto = container.get_text(" ", strip=True)
-            m_placar = re.search(r"(\d+)\s*[xX]\s*(\d+)", texto)
-            if not m_placar:
-                continue
-            gm, gv = m_placar.group(1), m_placar.group(2)
-            mask = df["ref"] == ref_html
-            if mask.any():
-                df.loc[mask, "gols_mandante"] = gm
-                df.loc[mask, "gols_visitante"] = gv
-                placares_encontrados += int(mask.sum())
-        log.info(f"  → Método links: {placares_encontrados} placares encontrados")
+            log.info(f"  → Abrindo {CBF_URL} ...")
+            page.goto(CBF_URL, wait_until="networkidle", timeout=60000)
 
-    # ── Tentativa 3: match por nome de time no texto ──────────────
-    # Usa os nomes do PDF para casar com blocos de texto "Time A N x N Time B"
-    if placares_encontrados == 0:
-        texto_pagina = soup.get_text(" ")
-        for _, row in df[df["gols_mandante"].isna()].iterrows():
-            # Pega os primeiros tokens do nome (evita false positives)
-            m1 = row["mandante"].split()[0]
-            v1 = row["visitante"].split()[0]
-            padrao = rf"{re.escape(m1)}[^0-9]{{0,40}}(\d+)\s*[xX]\s*(\d+)[^0-9]{{0,40}}{re.escape(v1)}"
-            m = re.search(padrao, texto_pagina, re.IGNORECASE)
-            if m:
-                mask = df["ref"] == str(row["ref"])
-                df.loc[mask, "gols_mandante"] = m.group(1)
-                df.loc[mask, "gols_visitante"] = m.group(2)
-                placares_encontrados += 1
-        log.info(f"  → Método texto: {placares_encontrados} placares encontrados")
+            # Espera a tabela de classificação aparecer (confirma que JS rodou)
+            try:
+                page.wait_for_selector("table", timeout=15000)
+            except Exception:
+                log.warning("  ⚠ Timeout esperando tabela — HTML pode estar incompleto")
+
+            html = page.content()
+            browser.close()
+
+        soup = BeautifulSoup(html, "html.parser")
+
+        # ── Tentativa 1: data-jogo ────────────────────────────────
+        jogos_html = soup.find_all(attrs={"data-jogo": True})
+        if jogos_html:
+            for bloco in jogos_html:
+                ref_html = str(bloco.get("data-jogo", "")).strip().lstrip("0") or "0"
+                texto = bloco.get_text(" ", strip=True)
+                m = re.search(r"(\d+)\s*[xX]\s*(\d+)", texto)
+                if not m:
+                    continue
+                gm, gv = m.group(1), m.group(2)
+                mask = df["ref"] == ref_html
+                if mask.any():
+                    df.loc[mask, "gols_mandante"] = gm
+                    df.loc[mask, "gols_visitante"] = gv
+                    placares_encontrados += int(mask.sum())
+            log.info(f"  → data-jogo: {placares_encontrados} placares")
+
+        # ── Tentativa 2: links /jogos/campeonato-brasileiro/REF ───
+        if placares_encontrados == 0:
+            for a in soup.find_all(
+                "a", href=re.compile(r"/jogos/campeonato-brasileiro/(\d+)")
+            ):
+                m_ref = re.search(r"/jogos/campeonato-brasileiro/(\d+)", a["href"])
+                if not m_ref:
+                    continue
+                ref_html = m_ref.group(1).lstrip("0") or "0"
+                container = a.find_parent() or a
+                texto = container.get_text(" ", strip=True)
+                m_placar = re.search(r"(\d+)\s*[xX]\s*(\d+)", texto)
+                if not m_placar:
+                    continue
+                gm, gv = m_placar.group(1), m_placar.group(2)
+                mask = df["ref"] == ref_html
+                if mask.any():
+                    df.loc[mask, "gols_mandante"] = gm
+                    df.loc[mask, "gols_visitante"] = gv
+                    placares_encontrados += int(mask.sum())
+            log.info(f"  → links: {placares_encontrados} placares")
+
+        # ── Tentativa 3: match por nome de time no texto ──────────
+        if placares_encontrados == 0:
+            texto_pagina = soup.get_text(" ")
+            for _, row in df[df["gols_mandante"].isna()].iterrows():
+                m1 = row["mandante"].split()[0]
+                v1 = row["visitante"].split()[0]
+                padrao = (
+                    rf"{re.escape(m1)}[^0-9]{{0,40}}"
+                    rf"(\d+)\s*[xX]\s*(\d+)"
+                    rf"[^0-9]{{0,40}}{re.escape(v1)}"
+                )
+                m = re.search(padrao, texto_pagina, re.IGNORECASE)
+                if m:
+                    mask = df["ref"] == str(row["ref"])
+                    df.loc[mask, "gols_mandante"] = m.group(1)
+                    df.loc[mask, "gols_visitante"] = m.group(2)
+                    placares_encontrados += 1
+            log.info(f"  → texto: {placares_encontrados} placares")
+
+    except Exception as e:
+        log.warning(f"  ⚠ Playwright falhou, mantendo dados do PDF: {e}")
 
     atualizados = df["gols_mandante"].notna().sum()
     log.info(
