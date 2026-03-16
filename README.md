@@ -6,8 +6,6 @@ Pipeline automatizado de coleta, processamento e visualização de dados do Camp
 
 ## 📸 Dashboard
 
-![Dashboard Preview](https://via.placeholder.com/900x400/0d1117/009B3A?text=Brasileirão+2026+Dashboard)
-
 O dashboard é gerado automaticamente como `brasileirao_dashboard.html` e publicado via **GitHub Pages** a cada execução do pipeline.
 
 🔗 **[Ver dashboard ao vivo](https://mayaracalmeida.github.io/brasileirao-2026-pipeline)**
