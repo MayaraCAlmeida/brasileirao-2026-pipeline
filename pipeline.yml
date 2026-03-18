@@ -1,0 +1,46 @@
+name: Brasileirão Pipeline
+
+on:
+  schedule:
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Instalar Playwright + Chromium
+        run: playwright install chromium --with-deps
+
+      - name: Rodar pipeline
+        env:
+          DB_HOST:     ${{ secrets.DB_HOST }}
+          DB_USER:     ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME:     ${{ secrets.DB_NAME }}
+          DB_PORT:     ${{ secrets.DB_PORT }}
+        run: python scheduler.py --run-now
+
+      - name: Preparar pasta para Pages
+        run: |
+          mkdir -p public
+          cp brasileirao_dashboard.html public/index.html
+
+      - name: Publicar no GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: ./public
