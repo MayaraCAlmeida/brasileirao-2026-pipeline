@@ -1,4 +1,5 @@
 -- Classificação oficial
+
 CREATE TABLE IF NOT EXISTS tabela (
     posicao         INTEGER,
     time            VARCHAR(100) PRIMARY KEY,  
