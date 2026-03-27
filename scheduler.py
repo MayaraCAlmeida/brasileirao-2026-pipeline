@@ -37,6 +37,11 @@ def run_full_pipeline():
     log.info("=" * 60)
 
     try:
+        log.info("[0/5] Baixando PDF da CBF...")
+        from download_PDF import download_pdf
+
+        download_pdf()
+
         log.info("[1/5] Extraindo dados da CBF...")
         from extract_data import run as extract
 
