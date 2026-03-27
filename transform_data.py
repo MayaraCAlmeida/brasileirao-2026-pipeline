@@ -1,14 +1,12 @@
-"""
-Brasileirão 2026 — Data Pipeline
-Transformação & Feature Engineering
+# Transformação & Feature Engineering
 
-Métricas calculadas:
-  - Performance Score por time (pontos, saldo, aproveitamento normalizado)
-  - Forma recente (últimas 5 rodadas)
-  - Analise de jogos em casa e fora
-  - Consistência ofensiva e defensiva
-  - Gols por rodada
-"""
+# Métricas calculadas:
+#  - Performance Score por time (pontos, saldo, aproveitamento normalizado)
+#  - Forma recente (últimas 5 rodadas)
+#  - Analise de jogos em casa e fora
+#  - Consistência ofensiva e defensiva
+#  - Gols por rodada
+
 
 import os
 import logging
