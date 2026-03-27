@@ -1,7 +1,5 @@
-"""
-Brasileirão 2026 — Data Pipeline
-Módulo 2: Limpeza e padronização dos dados brutos
-"""
+# Limpeza e padronização dos dados brutos
+
 
 import os
 import logging
