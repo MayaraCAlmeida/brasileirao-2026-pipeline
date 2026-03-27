@@ -1,12 +1,11 @@
-"""
-Brasileirao 2026 - Data Pipeline
-- Tabela de classificação: CBF (scraping)
-- Artilharia: CBF (scraping)
-- Partidas: PDF oficial da CBF (Tabela Detalhada)
-- Placares: CBF (scraping) — complementa o PDF com resultados já disponíveis
+# extração de dados
+# - Tabela de classificação: CBF (scraping)
+# - Artilharia: CBF (scraping)
+# - Partidas: PDF oficial da CBF (Tabela Detalhada)
+# - Placares: CBF (scraping) — complementa o PDF com resultados já disponíveis
 
-Dependências: pip install requests beautifulsoup4 pdfplumber pandas
-"""
+# Dependências: pip install requests beautifulsoup4 pdfplumber pandas
+
 
 import os
 import re
