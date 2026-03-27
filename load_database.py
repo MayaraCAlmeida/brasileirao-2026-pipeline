@@ -1,7 +1,4 @@
-"""
-Brasileirão 2026 — Data Pipeline
-Módulo 4: Carga no PostgreSQL com upsert
-"""
+# Carga no PostgreSQL com upsert
 
 import os
 import logging
