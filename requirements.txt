@@ -1,6 +1,7 @@
-# Brasileirão 2026 Pipeline — Dependências
+# Dependências
 
 # pip install -r requirements.txt
+
 requests==2.31.0
 beautifulsoup4==4.12.3
 pandas==2.2.0
