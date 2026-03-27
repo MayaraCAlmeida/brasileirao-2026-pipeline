@@ -1,7 +1,4 @@
-"""
-Brasileirão 2026 — Data Pipeline
-Geração do Dashboard HTML
-"""
+# Geração do Dashboard HTML
 
 import os
 import ssl
