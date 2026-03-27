@@ -148,7 +148,7 @@ JOIN forma_recente f ON ts.time = f.time
 ORDER BY ts.performance_score DESC;
 
 
----- corrigindo
+---- correção
 
 SELECT time FROM tabela ORDER BY posicao;
 SELECT time FROM forma_recente LIMIT 5;
