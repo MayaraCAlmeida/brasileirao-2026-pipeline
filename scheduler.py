@@ -1,12 +1,10 @@
-"""
-Brasileirão 2026 — Data Pipeline
-Scheduler: orquestra o pipeline completo e agenda execução diária
+# Scheduler: orquestra o pipeline completo e agenda execução diária
 
-Uso:
-  python scheduler.py --run-now          # executa agora
-  python scheduler.py                    # agenda para 06:00 BRT todo dia
-  python scheduler.py --hour 8 --minute 30
-"""
+# Uso:
+#  python scheduler.py --run-now          # executa agora
+#  python scheduler.py                    # agenda para 06:00 BRT todo dia
+#  python scheduler.py --hour 8 --minute 30
+
 
 import sys
 import logging
