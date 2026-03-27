@@ -21,9 +21,9 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 RAW_DIR = os.path.join(BASE_DIR, "dados_brutos")
 os.makedirs(RAW_DIR, exist_ok=True)
 
-# ── Coloque o caminho do PDF da CBF aqui ──────────────────
+# -- caminho do PDF da CBF 
 PDF_PATH = os.path.join(BASE_DIR, "Tabela_Detalhada_BSA_2026.pdf")
-# ─────────────────────────────────────────────────────────
+# --
 
 HEADERS = {
     "User-Agent": (
@@ -61,9 +61,10 @@ def save_raw(df, name):
     return path
 
 
-# ─────────────────────────────────────────────────────────
+
 # TABELA DE CLASSIFICAÇÃO (CBF scraping)
-# ─────────────────────────────────────────────────────────
+# --------------------------------------------------------
+
 def extract_tabela():
     log.info("► Tabela de classificação (CBF)...")
     soup = get_soup(CBF_URL)
@@ -122,9 +123,9 @@ def extract_tabela():
     return df
 
 
-# ─────────────────────────────────────────────────────────
+
 # ARTILHARIA (CBF scraping)
-# ─────────────────────────────────────────────────────────
+# --------------------------------------------------------
 def extract_artilharia():
     log.info("► Artilharia (CBF)...")
     soup = get_soup(CBF_URL)
@@ -180,9 +181,9 @@ def extract_artilharia():
     return df
 
 
-# ─────────────────────────────────────────────────────────
+
 # PARTIDAS (PDF oficial da CBF)
-# ─────────────────────────────────────────────────────────
+# --------------------------------------------------------
 def extract_partidas():
     log.info(f"► Partidas (PDF: {os.path.basename(PDF_PATH)})...")
 
@@ -260,9 +261,8 @@ def extract_partidas():
     return df
 
 
-# ─────────────────────────────────────────────────────────
+
 # PLACARES VIA PLAYWRIGHT (CBF — complementa o PDF)
-#
 # O site da CBF renderiza os jogos via JavaScript, então requests
 # + BeautifulSoup só vê HTML estático sem placares. O Playwright
 # abre um browser headless real, espera o JS carregar e extrai
@@ -272,7 +272,7 @@ def extract_partidas():
 #   1. data-jogo attribute nos blocos de jogo
 #   2. Links /jogos/campeonato-brasileiro/REF
 #   3. Match por nome de time no texto renderizado
-# ─────────────────────────────────────────────────────────
+# ----------------------------------------------------------
 def scrape_placares_cbf(df_partidas: pd.DataFrame) -> pd.DataFrame:
     """
     Recebe o DataFrame completo de partidas (vindo do PDF) e tenta
@@ -314,7 +314,7 @@ def scrape_placares_cbf(df_partidas: pd.DataFrame) -> pd.DataFrame:
 
         soup = BeautifulSoup(html, "html.parser")
 
-        # ── Tentativa 1: data-jogo ────────────────────────────────
+        # Tentativa 1: data-jogo 
         jogos_html = soup.find_all(attrs={"data-jogo": True})
         if jogos_html:
             for bloco in jogos_html:
@@ -331,7 +331,7 @@ def scrape_placares_cbf(df_partidas: pd.DataFrame) -> pd.DataFrame:
                     placares_encontrados += int(mask.sum())
             log.info(f"  → data-jogo: {placares_encontrados} placares")
 
-        # ── Tentativa 2: links /jogos/campeonato-brasileiro/REF ───
+        # Tentativa 2: links /jogos/campeonato-brasileiro/REF 
         if placares_encontrados == 0:
             for a in soup.find_all(
                 "a", href=re.compile(r"/jogos/campeonato-brasileiro/(\d+)")
@@ -353,7 +353,7 @@ def scrape_placares_cbf(df_partidas: pd.DataFrame) -> pd.DataFrame:
                     placares_encontrados += int(mask.sum())
             log.info(f"  → links: {placares_encontrados} placares")
 
-        # ── Tentativa 3: match por nome de time no texto ──────────
+        # Tentativa 3: match por nome de time no texto 
         if placares_encontrados == 0:
             texto_pagina = soup.get_text(" ")
             for _, row in df[df["gols_mandante"].isna()].iterrows():
@@ -383,9 +383,9 @@ def scrape_placares_cbf(df_partidas: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-# ─────────────────────────────────────────────────────────
+
 # MAIN
-# ─────────────────────────────────────────────────────────
+
 def run():
     log.info("=" * 60)
     log.info("  Brasileirão 2026 Pipeline — Extração")
