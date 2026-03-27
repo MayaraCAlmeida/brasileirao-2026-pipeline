@@ -4,11 +4,11 @@ Pipeline automatizado de coleta, processamento e visualização de dados do Camp
 
 ---
 
-## 📸 Dashboard
+# Dashboard
 
 O dashboard é gerado automaticamente como `brasileirao_dashboard.html` e publicado via **GitHub Pages** a cada execução do pipeline.
 
-🔗 **[Ver dashboard ao vivo](https://mayaracalmeida.github.io/brasileirao-2026-pipeline)**
+**[Ver dashboard ao vivo](https://mayaracalmeida.github.io/brasileirao-2026-pipeline)**
 
 ---
 
@@ -41,7 +41,7 @@ brasileirao-2026-pipeline/
 
 ---
 
-## Arquitetura do Pipeline
+# Arquitetura do Pipeline
 
 ```
 CBF Website  ──scraping──►  extract_data.py
@@ -70,7 +70,7 @@ PDF Oficial  ──pdfplumber──►      │
 
 ---
 
-## Tabelas no Banco de Dados
+# Tabelas no Banco de Dados
 
 | Tabela | Descrição |
 |---|---|
@@ -86,9 +86,9 @@ O `load_database.py` usa **upsert** (`ON CONFLICT DO UPDATE`) em todas as tabela
 
 ---
 
-## Como Executar
+# Como Executar
 
-### Pré-requisitos
+## Pré-requisitos
 
 - Python 3.11+
 - PostgreSQL rodando localmente ou em nuvem
@@ -124,7 +124,7 @@ Crie as tabelas no banco:
 psql -U postgres -d brasileirao_pipeline -f create_tables.sql
 ```
 
-### Execução
+# Execução
 
 **Rodar o pipeline completo agora:**
 
@@ -156,7 +156,7 @@ python generate_dashboard.py
 
 ---
 
-## CI/CD com GitHub Actions
+# CI/CD com GitHub Actions
 
 O arquivo `.github/workflows/pipeline.yml` automatiza tudo:
 
@@ -164,7 +164,7 @@ O arquivo `.github/workflows/pipeline.yml` automatiza tudo:
 - **Trigger manual** via `workflow_dispatch`
 - Após o pipeline, o dashboard é publicado automaticamente no **GitHub Pages**
 
-### Configurar os secrets no repositório
+# Configurar os secrets no repositório
 
 Vá em **Settings → Secrets and variables → Actions** e adicione:
 
@@ -180,7 +180,7 @@ Ative o GitHub Pages em **Settings → Pages** apontando para a branch `gh-pages
 
 ---
 
-## Métricas Calculadas
+# Métricas Calculadas
 
 ### Performance Score
 Índice composto de 0 a 100 por time:
@@ -196,7 +196,7 @@ Comparativo de vitórias, gols e aproveitamento jogando em casa versus fora.
 
 ---
 
-## Queries Analíticas
+# Queries Analíticas
 
 O arquivo `analytics_queries.sql` contém 10 queries prontas, incluindo:
 
@@ -211,7 +211,7 @@ O arquivo `analytics_queries.sql` contém 10 queries prontas, incluindo:
 
 ---
 
-## Tecnologias
+# Tecnologias
 
 | Tecnologia | Uso |
 |---|---|
@@ -226,7 +226,7 @@ O arquivo `analytics_queries.sql` contém 10 queries prontas, incluindo:
 
 ---
 
-## Observações
+# Observações
 
 - A CBF pode demorar algumas horas para atualizar o site após os jogos. O pipeline roda diariamente de manhã, garantindo que os dados do dia anterior estejam disponíveis.
 - O PDF da Tabela Detalhada deve ser atualizado manualmente quando a CBF publicar uma nova versão (normalmente após alterações de datas ou locais).
