@@ -33,12 +33,12 @@ def get_engine():
 
 def load_data(engine):
     queries = {
-        "tabela":     "SELECT * FROM tabela ORDER BY posicao",
+        "tabela": "SELECT * FROM tabela ORDER BY posicao",
         "team_stats": "SELECT * FROM team_stats ORDER BY posicao",
-        "forma":      "SELECT * FROM forma_recente",
+        "forma": "SELECT * FROM forma_recente",
         "artilharia": "SELECT * FROM artilharia ORDER BY gols DESC LIMIT 15",
-        "partidas":   "SELECT * FROM partidas_finalizadas ORDER BY rodada DESC, ref",
-        "gols_rodada":"SELECT * FROM gols_por_rodada ORDER BY rodada",
+        "partidas": "SELECT * FROM partidas_finalizadas ORDER BY rodada DESC, ref",
+        "gols_rodada": "SELECT * FROM gols_por_rodada ORDER BY rodada",
     }
     data = {}
     with engine.connect() as conn:
@@ -51,18 +51,24 @@ def load_data(engine):
         data["probabilidades"] = pd.read_csv(prob_path)
     else:
         data["probabilidades"] = pd.DataFrame()
-        log.warning("  probabilidades.csv não encontrado — aba de probabilidades ficará vazia.")
+        log.warning(
+            "  probabilidades.csv não encontrado — aba de probabilidades ficará vazia."
+        )
 
     return data
 
 
 def gerar_html(data: dict) -> str:
-    tabela      = data["tabela"].to_dict(orient="records")
-    team_stats  = data["team_stats"].to_dict(orient="records")
-    artilharia  = data["artilharia"].to_dict(orient="records")
-    partidas    = data["partidas"].head(50).to_dict(orient="records")
+    tabela = data["tabela"].to_dict(orient="records")
+    team_stats = data["team_stats"].to_dict(orient="records")
+    artilharia = data["artilharia"].to_dict(orient="records")
+    partidas = data["partidas"].head(50).to_dict(orient="records")
     gols_rodada = data["gols_rodada"].to_dict(orient="records")
-    probabilidades = data["probabilidades"].to_dict(orient="records") if not data["probabilidades"].empty else []
+    probabilidades = (
+        data["probabilidades"].to_dict(orient="records")
+        if not data["probabilidades"].empty
+        else []
+    )
 
     forma_map = {
         r["time"]: r.get("forma_str", "")
@@ -158,7 +164,7 @@ def gerar_html(data: dict) -> str:
   .prob-bar-wrap {{ display: flex; align-items: center; gap: 8px; }}
   .prob-bar {{ height: 10px; border-radius: 5px; min-width: 2px; transition: width 0.4s; }}
   .prob-val  {{ font-size: 0.82rem; font-weight: 700; min-width: 42px; text-align: right; }}
-  .prob-campeo       {{ background: #F5C518; }}
+  .prob-campeao       {{ background: #F5C518; }}
   .prob-libertadores {{ background: #238636; }}
   .prob-sulamericana {{ background: #1f6feb; }}
   .prob-rebaixamento {{ background: #da3633; }}
@@ -209,8 +215,8 @@ def gerar_html(data: dict) -> str:
     </div>
     <div style="margin-top:14px;display:flex;gap:20px;flex-wrap:wrap;font-size:0.78rem;color:var(--muted)">
       <span>🟢 Top 6 — Libertadores</span>
-      <span>🔵 7º-12º — Sul-Americana</span>
-      <span>🔴 17º-20º — Rebaixamento</span>
+      <span>🔵 7º-15º — Sul-Americana</span>
+      <span>🔴 16º-20º — Rebaixamento</span>
     </div>
   </div>
 </div>
@@ -237,18 +243,19 @@ def gerar_html(data: dict) -> str:
     <div class="legend-prob">
       <span><span class="legend-dot" style="background:#F5C518"></span>Campeão (1º lugar)</span>
       <span><span class="legend-dot" style="background:#238636"></span>Libertadores (Top 6)</span>
-      <span><span class="legend-dot" style="background:#1f6feb"></span>Sul-Americana (7º–12º)</span>
-      <span><span class="legend-dot" style="background:#da3633"></span>Rebaixamento (17º–20º)</span>
+      <span><span class="legend-dot" style="background:#1f6feb"></span>Sul-Americana (7º–15º)</span>
+      <span><span class="legend-dot" style="background:#da3633"></span>Rebaixamento (16º–20º)</span>
     </div>
     <p class="nota-mc">
       * Probabilidades calculadas via simulação de Monte Carlo com 10.000 cenários para o restante da temporada.
-      A força de cada time é baseada no aproveitamento atual. Atualizado a cada execução do pipeline.
+        Campeão = Top 4 | Libertadores = Top 6 | Sul-Americana = 7º–15º | Rebaixamento = 16º–20º.
+        A força de cada time é baseada no aproveitamento atual. Atualizado a cada execução do pipeline.
     </p>
   </div>
   <div class="grid-2">
     <div class="card">
       <h3>🏆 Top 10 — Chance de Título</h3>
-      <div class="chart-container"><canvas id="chart-prob-campeo"></canvas></div>
+      <div class="chart-container"><canvas id="chart-prob-campeao"></canvas></div>
     </div>
     <div class="card">
       <h3>🔴 Top 10 — Risco de Rebaixamento</h3>
@@ -364,8 +371,8 @@ function renderTabela() {{
     const pos = i + 1;
     let rowCls = '', posCls = 'pos';
     if (pos <= 6)                  {{ rowCls = 'zona-libertadores'; posCls += ' pos-top4'; }}
-    else if (pos >= 17)            {{ rowCls = 'zona-rebaixamento'; posCls += ' pos-lib'; }}
-    else if (pos >= 7 && pos <= 12) rowCls = 'zona-sulamericana';
+    else if (pos >= 16)            {{ rowCls = 'zona-rebaixamento'; posCls += ' pos-lib'; }}
+    else if (pos >= 7 && pos <= 15) rowCls = 'zona-sulamericana';
     const forma = FORMA_MAP[t.time] || '';
     const sg    = t.saldo_gols;
     return `<tr class="${{rowCls}}">
@@ -410,7 +417,7 @@ function renderProbabilidades() {{
       <td><span class="pos">${{pos}}</span></td>
       <td><span class="time-nome">${{p.time}}</span></td>
       <td><span class="pts">${{p.pontos}}</span></td>
-      <td>${{probBar(p.prob_campeo,       'prob-campeo')}}</td>
+      <td>${{probBar(p.prob_campeao,       'prob-campeao')}}</td>
       <td>${{probBar(p.prob_libertadores, 'prob-libertadores')}}</td>
       <td>${{probBar(p.prob_sulamericana, 'prob-sulamericana')}}</td>
       <td>${{probBar(p.prob_rebaixamento, 'prob-rebaixamento')}}</td>
@@ -427,12 +434,12 @@ function renderProbabilidades() {{
   }};
 
   // Campeão — top 10
-  const topCampeo = [...PROBABILIDADES].sort((a,b) => b.prob_campeo - a.prob_campeo).slice(0, 10);
-  new Chart(document.getElementById('chart-prob-campeo'), {{
+  const topCampeao = [...PROBABILIDADES].sort((a,b) => b.prob_campeao - a.prob_campeao).slice(0, 10);
+  new Chart(document.getElementById('chart-prob-campeao'), {{
     type: 'bar',
     data: {{
-      labels: topCampeo.map(t => t.time),
-      datasets: [{{ label: '% Campeão', data: topCampeo.map(t => t.prob_campeo),
+      labels: topCampeao.map(t => t.time),
+      datasets: [{{ label: '% Campeão', data: topCampeao.map(t => t.prob_campeao),
         backgroundColor: 'rgba(245,197,24,0.75)', borderColor: '#F5C518', borderWidth: 1, borderRadius: 6 }}]
     }},
     options: {{ ...cfgBase, indexAxis: 'y' }}
@@ -593,8 +600,8 @@ def run():
     log.info("=" * 60)
     try:
         engine = get_engine()
-        data   = load_data(engine)
-        html   = gerar_html(data)
+        data = load_data(engine)
+        html = gerar_html(data)
         output = os.path.join(BASE_DIR, "brasileirao_dashboard.html")
         with open(output, "w", encoding="utf-8") as f:
             f.write(html)
