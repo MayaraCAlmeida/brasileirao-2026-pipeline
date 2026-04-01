@@ -47,7 +47,7 @@ def simular(df_tabela: pd.DataFrame, df_partidas_all: pd.DataFrame) -> pd.DataFr
 
     # Contadores
     contagem = {
-        "campeo": {t: 0 for t in times},
+        "campeao": {t: 0 for t in times},
         "libertadores": {t: 0 for t in times},
         "sulamericana": {t: 0 for t in times},
         "rebaixamento": {t: 0 for t in times},
@@ -105,11 +105,11 @@ def simular(df_tabela: pd.DataFrame, df_partidas_all: pd.DataFrame) -> pd.DataFr
         )
 
         for pos, time in enumerate(classificacao, start=1):
-            if pos == 1:
-                contagem["campeo"][time] += 1
             if pos <= 4:
+                contagem["campeao"][time] += 1
+            if pos <= 6:
                 contagem["libertadores"][time] += 1
-            if 5 <= pos <= 12:
+            if 7 <= pos <= 15:
                 contagem["sulamericana"][time] += 1
             if pos >= 16:
                 contagem["rebaixamento"][time] += 1
@@ -123,7 +123,9 @@ def simular(df_tabela: pd.DataFrame, df_partidas_all: pd.DataFrame) -> pd.DataFr
                 "time": time,
                 "posicao": int(pos_atual) if pd.notna(pos_atual) else 99,
                 "pontos": pontos_base.get(time, 0),
-                "prob_campeo": round(contagem["campeo"][time] / N_SIMULACOES * 100, 1),
+                "prob_campeao": round(
+                    contagem["campeao"][time] / N_SIMULACOES * 100, 1
+                ),
                 "prob_libertadores": round(
                     contagem["libertadores"][time] / N_SIMULACOES * 100, 1
                 ),
