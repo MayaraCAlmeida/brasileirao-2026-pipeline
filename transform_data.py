@@ -6,6 +6,7 @@
 #  - Analise de jogos em casa e fora
 #  - Consistência ofensiva e defensiva
 #  - Gols por rodada
+#  - Probabilidades via Monte Carlo
 
 
 import os
@@ -28,7 +29,7 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 
-# ─── Métricas ─────────────────────────────────────────────────────────────────
+# Métricas
 def compute_performance_score(row) -> float:
     """
     Performance Score = (aproveitamento × 0.5) + (saldo_gols_norm × 0.3) + (gols_pro_norm × 0.2)
@@ -48,7 +49,6 @@ def compute_performance_score(row) -> float:
 
 def build_team_stats(df_fin: pd.DataFrame, df_tabela: pd.DataFrame) -> pd.DataFrame:
     """Agrega estatísticas por time a partir das partidas finalizadas."""
-    # chaves reais: "mandante", "visitante", "resultado_mandante", "resultado_visitante"
     todos_times = pd.concat([df_fin["mandante"], df_fin["visitante"]]).dropna().unique()
 
     records = []
@@ -175,7 +175,6 @@ def build_forma_recente(df_fin: pd.DataFrame, n_rodadas: int = 5) -> pd.DataFram
 
 def build_gols_por_rodada(df_fin: pd.DataFrame) -> pd.DataFrame:
     """Média de gols por rodada (tendência da competição)."""
-    # chave real é "ref", não "partida_id"; "total_gols" já existe no módulo 2
     rodada_stats = (
         df_fin.groupby("rodada")
         .agg(
@@ -190,7 +189,7 @@ def build_gols_por_rodada(df_fin: pd.DataFrame) -> pd.DataFrame:
     return rodada_stats
 
 
-# ─── Main ─────────────────────────────────────────────────────────────────────
+# Main
 def run():
     log.info("=" * 60)
     log.info("  Brasileirão 2026 Pipeline — Transformação")
@@ -223,6 +222,16 @@ def run():
 
     except Exception as e:
         log.error(f"  ✘ Erro na transformação: {e}", exc_info=True)
+
+    # Monte Carlo — roda separado para não travar o pipeline se falhar
+    try:
+        log.info("► Simulação Monte Carlo (probabilidades)...")
+        from monte_carlo import run as mc_run
+
+        df_prob = mc_run()
+        results["probabilidades"] = df_prob
+    except Exception as e:
+        log.error(f"  ✘ Erro no Monte Carlo: {e}", exc_info=True)
 
     log.info("=" * 60)
     log.info(f"  Concluído. {len(results)} datasets gerados.")
