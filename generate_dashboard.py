@@ -254,22 +254,22 @@ def gerar_html(data: dict) -> str:
   </div>
   <div class="grid-2">
     <div class="card">
-      <h3>🏆 Top 10 — Chance de Título</h3>
-      <div class="chart-container"><canvas id="chart-prob-campeao"></canvas></div>
+      <h3>🏆 Chance de Título</h3>
+      <div class="chart-container" style="height:480px"><canvas id="chart-prob-campeao"></canvas></div>
     </div>
     <div class="card">
-      <h3>🔴 Top 10 — Risco de Rebaixamento</h3>
-      <div class="chart-container"><canvas id="chart-prob-rebaixamento"></canvas></div>
+      <h3>🔴 Risco de Rebaixamento</h3>
+      <div class="chart-container" style="height:480px"><canvas id="chart-prob-rebaixamento"></canvas></div>
     </div>
   </div>
   <div class="grid-2">
     <div class="card">
-      <h3>🟢 Libertadores — Top 10</h3>
-      <div class="chart-container"><canvas id="chart-prob-libertadores"></canvas></div>
+      <h3>🟢 Libertadores</h3>
+      <div class="chart-container" style="height:480px"><canvas id="chart-prob-libertadores"></canvas></div>
     </div>
     <div class="card">
-      <h3>🔵 Sul-Americana — Top 10</h3>
-      <div class="chart-container"><canvas id="chart-prob-sulamericana"></canvas></div>
+      <h3>🔵 Sul-Americana</h3>
+      <div class="chart-container" style="height:480px"><canvas id="chart-prob-sulamericana"></canvas></div>
     </div>
   </div>
 </div>
@@ -434,7 +434,7 @@ function renderProbabilidades() {{
   }};
 
   // Campeão — top 10
-  const topCampeao = [...PROBABILIDADES].sort((a,b) => b.prob_campeao - a.prob_campeao).slice(0, 10);
+  const topCampeao = [...PROBABILIDADES].sort((a,b) => b.prob_campeao - a.prob_campeao).slice(0, 20);
   new Chart(document.getElementById('chart-prob-campeao'), {{
     type: 'bar',
     data: {{
@@ -446,7 +446,7 @@ function renderProbabilidades() {{
   }});
 
   // Rebaixamento — top 10
-  const topReb = [...PROBABILIDADES].sort((a,b) => b.prob_rebaixamento - a.prob_rebaixamento).slice(0, 10);
+  const topReb = [...PROBABILIDADES].sort((a,b) => b.prob_rebaixamento - a.prob_rebaixamento).slice(0, 20);
   new Chart(document.getElementById('chart-prob-rebaixamento'), {{
     type: 'bar',
     data: {{
@@ -458,7 +458,7 @@ function renderProbabilidades() {{
   }});
 
   // Libertadores — top 10
-  const topLib = [...PROBABILIDADES].sort((a,b) => b.prob_libertadores - a.prob_libertadores).slice(0, 10);
+  const topLib = [...PROBABILIDADES].sort((a,b) => b.prob_libertadores - a.prob_libertadores).slice(0, 20);
   new Chart(document.getElementById('chart-prob-libertadores'), {{
     type: 'bar',
     data: {{
@@ -470,7 +470,7 @@ function renderProbabilidades() {{
   }});
 
   // Sul-Americana — top 10
-  const topSul = [...PROBABILIDADES].sort((a,b) => b.prob_sulamericana - a.prob_sulamericana).slice(0, 10);
+  const topSul = [...PROBABILIDADES].sort((a,b) => b.prob_sulamericana - a.prob_sulamericana).slice(0, 20);
   new Chart(document.getElementById('chart-prob-sulamericana'), {{
     type: 'bar',
     data: {{
