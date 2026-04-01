@@ -33,28 +33,37 @@ def get_engine():
 
 def load_data(engine):
     queries = {
-        "tabela": "SELECT * FROM tabela ORDER BY posicao",
+        "tabela":     "SELECT * FROM tabela ORDER BY posicao",
         "team_stats": "SELECT * FROM team_stats ORDER BY posicao",
-        "forma": "SELECT * FROM forma_recente",
+        "forma":      "SELECT * FROM forma_recente",
         "artilharia": "SELECT * FROM artilharia ORDER BY gols DESC LIMIT 15",
-        "partidas": "SELECT * FROM partidas_finalizadas ORDER BY rodada DESC, ref",
-        "gols_rodada": "SELECT * FROM gols_por_rodada ORDER BY rodada",
+        "partidas":   "SELECT * FROM partidas_finalizadas ORDER BY rodada DESC, ref",
+        "gols_rodada":"SELECT * FROM gols_por_rodada ORDER BY rodada",
     }
     data = {}
     with engine.connect() as conn:
         for key, q in queries.items():
             data[key] = pd.read_sql(text(q), conn)
+
+    # Probabilidades vêm do CSV (gerado pelo Monte Carlo no transform_data.py)
+    prob_path = os.path.join(BASE_DIR, "dados_processados", "probabilidades.csv")
+    if os.path.exists(prob_path):
+        data["probabilidades"] = pd.read_csv(prob_path)
+    else:
+        data["probabilidades"] = pd.DataFrame()
+        log.warning("  probabilidades.csv não encontrado — aba de probabilidades ficará vazia.")
+
     return data
 
 
 def gerar_html(data: dict) -> str:
-    tabela = data["tabela"].to_dict(orient="records")
-    team_stats = data["team_stats"].to_dict(orient="records")
-    artilharia = data["artilharia"].to_dict(orient="records")
-    partidas = data["partidas"].head(50).to_dict(orient="records")
+    tabela      = data["tabela"].to_dict(orient="records")
+    team_stats  = data["team_stats"].to_dict(orient="records")
+    artilharia  = data["artilharia"].to_dict(orient="records")
+    partidas    = data["partidas"].head(50).to_dict(orient="records")
     gols_rodada = data["gols_rodada"].to_dict(orient="records")
+    probabilidades = data["probabilidades"].to_dict(orient="records") if not data["probabilidades"].empty else []
 
-    # Mapa time → forma_str
     forma_map = {
         r["time"]: r.get("forma_str", "")
         for r in data["forma"].to_dict(orient="records")
@@ -90,9 +99,9 @@ def gerar_html(data: dict) -> str:
   .header .meta {{ color: rgba(255,255,255,0.85); font-size: 0.85rem; text-align: right; }}
   .badge {{ display: inline-block; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4);
             border-radius: 20px; padding: 4px 14px; font-size: 0.75rem; color: white; margin-bottom: 4px; }}
-  .tabs {{ display: flex; background: var(--card); border-bottom: 1px solid var(--border); padding: 0 32px; gap: 4px; }}
+  .tabs {{ display: flex; background: var(--card); border-bottom: 1px solid var(--border); padding: 0 32px; gap: 4px; overflow-x: auto; }}
   .tab-btn {{ padding: 14px 22px; cursor: pointer; border: none; background: none; color: var(--muted);
-              font-size: 0.9rem; font-weight: 600; border-bottom: 3px solid transparent; transition: all 0.2s; }}
+              font-size: 0.9rem; font-weight: 600; border-bottom: 3px solid transparent; transition: all 0.2s; white-space: nowrap; }}
   .tab-btn:hover {{ color: var(--text); }}
   .tab-btn.active {{ color: var(--amarelo); border-bottom-color: var(--amarelo); }}
   .content {{ padding: 28px 32px; max-width: 1400px; margin: 0 auto; }}
@@ -144,6 +153,18 @@ def gerar_html(data: dict) -> str:
   .zona-libertadores {{ border-left: 3px solid #238636; }}
   .zona-sulamericana  {{ border-left: 3px solid #1f6feb; }}
   .zona-rebaixamento  {{ border-left: 3px solid #da3633; }}
+
+  /* Probabilidades */
+  .prob-bar-wrap {{ display: flex; align-items: center; gap: 8px; }}
+  .prob-bar {{ height: 10px; border-radius: 5px; min-width: 2px; transition: width 0.4s; }}
+  .prob-val  {{ font-size: 0.82rem; font-weight: 700; min-width: 42px; text-align: right; }}
+  .prob-campeo       {{ background: #F5C518; }}
+  .prob-libertadores {{ background: #238636; }}
+  .prob-sulamericana {{ background: #1f6feb; }}
+  .prob-rebaixamento {{ background: #da3633; }}
+  .legend-prob {{ display: flex; gap: 20px; flex-wrap: wrap; font-size: 0.78rem; color: var(--muted); margin-top: 14px; }}
+  .legend-dot {{ display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }}
+  .nota-mc {{ font-size: 0.75rem; color: var(--muted); margin-top: 12px; font-style: italic; }}
 </style>
 </head>
 <body>
@@ -161,6 +182,7 @@ def gerar_html(data: dict) -> str:
 
 <div class="tabs">
   <button class="tab-btn active" onclick="showTab('classificacao', this)">🏆 Classificação</button>
+  <button class="tab-btn" onclick="showTab('probabilidades', this)">🎲 Probabilidades</button>
   <button class="tab-btn" onclick="showTab('times', this)">📊 Times</button>
   <button class="tab-btn" onclick="showTab('artilharia', this)">⚽ Artilharia</button>
   <button class="tab-btn" onclick="showTab('partidas', this)">🎯 Partidas</button>
@@ -186,9 +208,61 @@ def gerar_html(data: dict) -> str:
       </table>
     </div>
     <div style="margin-top:14px;display:flex;gap:20px;flex-wrap:wrap;font-size:0.78rem;color:var(--muted)">
-      <span>🟢 Top 4 — Libertadores</span>
-      <span>🔵 5º-12º — Sul-Americana</span>
+      <span>🟢 Top 6 — Libertadores</span>
+      <span>🔵 7º-12º — Sul-Americana</span>
       <span>🔴 17º-20º — Rebaixamento</span>
+    </div>
+  </div>
+</div>
+
+<div id="tab-probabilidades" class="tab-panel">
+  <div class="card">
+    <h3>🎲 Probabilidades — Simulação Monte Carlo (10.000 cenários)</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Time</th>
+            <th>Pts</th>
+            <th>🏆 Campeão</th>
+            <th>🟢 Libertadores</th>
+            <th>🔵 Sul-Americana</th>
+            <th>🔴 Rebaixamento</th>
+          </tr>
+        </thead>
+        <tbody id="prob-body"></tbody>
+      </table>
+    </div>
+    <div class="legend-prob">
+      <span><span class="legend-dot" style="background:#F5C518"></span>Campeão (1º lugar)</span>
+      <span><span class="legend-dot" style="background:#238636"></span>Libertadores (Top 6)</span>
+      <span><span class="legend-dot" style="background:#1f6feb"></span>Sul-Americana (7º–12º)</span>
+      <span><span class="legend-dot" style="background:#da3633"></span>Rebaixamento (17º–20º)</span>
+    </div>
+    <p class="nota-mc">
+      * Probabilidades calculadas via simulação de Monte Carlo com 10.000 cenários para o restante da temporada.
+      A força de cada time é baseada no aproveitamento atual. Atualizado a cada execução do pipeline.
+    </p>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <h3>🏆 Top 10 — Chance de Título</h3>
+      <div class="chart-container"><canvas id="chart-prob-campeo"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>🔴 Top 10 — Risco de Rebaixamento</h3>
+      <div class="chart-container"><canvas id="chart-prob-rebaixamento"></canvas></div>
+    </div>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <h3>🟢 Libertadores — Top 10</h3>
+      <div class="chart-container"><canvas id="chart-prob-libertadores"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>🔵 Sul-Americana — Top 10</h3>
+      <div class="chart-container"><canvas id="chart-prob-sulamericana"></canvas></div>
     </div>
   </div>
 </div>
@@ -239,12 +313,13 @@ def gerar_html(data: dict) -> str:
 </div>
 
 <script>
-const TABELA      = {json.dumps(tabela,      default=str)};
-const TEAM_STATS  = {json.dumps(team_stats,  default=str)};
-const FORMA_MAP   = {json.dumps(forma_map)};
-const ARTILHARIA  = {json.dumps(artilharia,  default=str)};
-const PARTIDAS    = {json.dumps(partidas,    default=str)};
-const GOLS_RODADA = {json.dumps(gols_rodada, default=str)};
+const TABELA         = {json.dumps(tabela,         default=str)};
+const TEAM_STATS     = {json.dumps(team_stats,     default=str)};
+const FORMA_MAP      = {json.dumps(forma_map)};
+const ARTILHARIA     = {json.dumps(artilharia,     default=str)};
+const PARTIDAS       = {json.dumps(partidas,       default=str)};
+const GOLS_RODADA    = {json.dumps(gols_rodada,    default=str)};
+const PROBABILIDADES = {json.dumps(probabilidades, default=str)};
 
 let chartsRendered = {{}};
 
@@ -253,14 +328,15 @@ function showTab(name, btn) {{
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
   btn.classList.add('active');
-  if (name === 'times' && !chartsRendered.times) {{ renderChartsTime(); chartsRendered.times = true; }}
-  if (name === 'artilharia' && !chartsRendered.artilharia) {{ renderArtilharia(); chartsRendered.artilharia = true; }}
-  if (name === 'partidas' && !chartsRendered.partidas) {{ renderPartidas(); chartsRendered.partidas = true; }}
+  if (name === 'probabilidades' && !chartsRendered.probabilidades) {{ renderProbabilidades(); chartsRendered.probabilidades = true; }}
+  if (name === 'times'          && !chartsRendered.times)          {{ renderChartsTime();    chartsRendered.times = true; }}
+  if (name === 'artilharia'     && !chartsRendered.artilharia)     {{ renderArtilharia();    chartsRendered.artilharia = true; }}
+  if (name === 'partidas'       && !chartsRendered.partidas)       {{ renderPartidas();      chartsRendered.partidas = true; }}
 }}
 
 function renderKPIs() {{
-  const totalGols  = PARTIDAS.reduce((s,p) => s + (p.total_gols||0), 0);
-  const lider      = TABELA[0] || {{}};
+  const totalGols   = PARTIDAS.reduce((s,p) => s + (p.total_gols||0), 0);
+  const lider       = TABELA[0] || {{}};
   const rodadaAtual = PARTIDAS.length > 0 ? Math.max(...PARTIDAS.map(p => p.rodada||0)) : '—';
   const kpis = [
     {{ label: 'Rodada Atual',     value: rodadaAtual }},
@@ -287,9 +363,9 @@ function renderTabela() {{
   document.getElementById('tabela-body').innerHTML = TABELA.map((t, i) => {{
     const pos = i + 1;
     let rowCls = '', posCls = 'pos';
-    if (pos <= 4)                {{ rowCls = 'zona-libertadores'; posCls += ' pos-top4'; }}
-    else if (pos >= 17)          {{ rowCls = 'zona-rebaixamento'; posCls += ' pos-lib'; }}
-    else if (pos >= 5 && pos<=12) rowCls = 'zona-sulamericana';
+    if (pos <= 6)                  {{ rowCls = 'zona-libertadores'; posCls += ' pos-top4'; }}
+    else if (pos >= 17)            {{ rowCls = 'zona-rebaixamento'; posCls += ' pos-lib'; }}
+    else if (pos >= 7 && pos <= 12) rowCls = 'zona-sulamericana';
     const forma = FORMA_MAP[t.time] || '';
     const sg    = t.saldo_gols;
     return `<tr class="${{rowCls}}">
@@ -307,6 +383,96 @@ function renderTabela() {{
       <td>${{formaHtml(forma)}}</td>
     </tr>`;
   }}).join('');
+}}
+
+function probBar(val, cls) {{
+  const w = Math.min(val, 100);
+  return `<div class="prob-bar-wrap">
+    <div class="prob-bar ${{cls}}" style="width:${{w * 1.5}}px"></div>
+    <span class="prob-val">${{val}}%</span>
+  </div>`;
+}}
+
+function renderProbabilidades() {{
+  if (!PROBABILIDADES.length) {{
+    document.getElementById('prob-body').innerHTML =
+      '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Dados de probabilidade ainda não disponíveis. Execute o pipeline completo.</td></tr>';
+    return;
+  }}
+
+  document.getElementById('prob-body').innerHTML = PROBABILIDADES.map((p, i) => {{
+    const pos = p.posicao || i + 1;
+    let rowCls = '';
+    if (p.prob_libertadores >= 50) rowCls = 'zona-libertadores';
+    else if (p.prob_rebaixamento >= 50) rowCls = 'zona-rebaixamento';
+    else if (p.prob_sulamericana >= 50) rowCls = 'zona-sulamericana';
+    return `<tr class="${{rowCls}}">
+      <td><span class="pos">${{pos}}</span></td>
+      <td><span class="time-nome">${{p.time}}</span></td>
+      <td><span class="pts">${{p.pontos}}</span></td>
+      <td>${{probBar(p.prob_campeo,       'prob-campeo')}}</td>
+      <td>${{probBar(p.prob_libertadores, 'prob-libertadores')}}</td>
+      <td>${{probBar(p.prob_sulamericana, 'prob-sulamericana')}}</td>
+      <td>${{probBar(p.prob_rebaixamento, 'prob-rebaixamento')}}</td>
+    </tr>`;
+  }}).join('');
+
+  const cfgBase = {{
+    responsive: true, maintainAspectRatio: false,
+    plugins: {{ legend: {{ display: false }} }},
+    scales: {{
+      x: {{ ticks: {{ color: '#8b949e' }}, grid: {{ color: '#30363d' }} }},
+      y: {{ ticks: {{ color: '#e6edf3' }}, grid: {{ color: '#30363d' }} }}
+    }}
+  }};
+
+  // Campeão — top 10
+  const topCampeo = [...PROBABILIDADES].sort((a,b) => b.prob_campeo - a.prob_campeo).slice(0, 10);
+  new Chart(document.getElementById('chart-prob-campeo'), {{
+    type: 'bar',
+    data: {{
+      labels: topCampeo.map(t => t.time),
+      datasets: [{{ label: '% Campeão', data: topCampeo.map(t => t.prob_campeo),
+        backgroundColor: 'rgba(245,197,24,0.75)', borderColor: '#F5C518', borderWidth: 1, borderRadius: 6 }}]
+    }},
+    options: {{ ...cfgBase, indexAxis: 'y' }}
+  }});
+
+  // Rebaixamento — top 10
+  const topReb = [...PROBABILIDADES].sort((a,b) => b.prob_rebaixamento - a.prob_rebaixamento).slice(0, 10);
+  new Chart(document.getElementById('chart-prob-rebaixamento'), {{
+    type: 'bar',
+    data: {{
+      labels: topReb.map(t => t.time),
+      datasets: [{{ label: '% Rebaixamento', data: topReb.map(t => t.prob_rebaixamento),
+        backgroundColor: 'rgba(218,54,51,0.75)', borderColor: '#da3633', borderWidth: 1, borderRadius: 6 }}]
+    }},
+    options: {{ ...cfgBase, indexAxis: 'y' }}
+  }});
+
+  // Libertadores — top 10
+  const topLib = [...PROBABILIDADES].sort((a,b) => b.prob_libertadores - a.prob_libertadores).slice(0, 10);
+  new Chart(document.getElementById('chart-prob-libertadores'), {{
+    type: 'bar',
+    data: {{
+      labels: topLib.map(t => t.time),
+      datasets: [{{ label: '% Libertadores', data: topLib.map(t => t.prob_libertadores),
+        backgroundColor: 'rgba(35,134,54,0.75)', borderColor: '#238636', borderWidth: 1, borderRadius: 6 }}]
+    }},
+    options: {{ ...cfgBase, indexAxis: 'y' }}
+  }});
+
+  // Sul-Americana — top 10
+  const topSul = [...PROBABILIDADES].sort((a,b) => b.prob_sulamericana - a.prob_sulamericana).slice(0, 10);
+  new Chart(document.getElementById('chart-prob-sulamericana'), {{
+    type: 'bar',
+    data: {{
+      labels: topSul.map(t => t.time),
+      datasets: [{{ label: '% Sul-Americana', data: topSul.map(t => t.prob_sulamericana),
+        backgroundColor: 'rgba(31,111,235,0.75)', borderColor: '#1f6feb', borderWidth: 1, borderRadius: 6 }}]
+    }},
+    options: {{ ...cfgBase, indexAxis: 'y' }}
+  }});
 }}
 
 function renderChartsTime() {{
@@ -427,8 +593,8 @@ def run():
     log.info("=" * 60)
     try:
         engine = get_engine()
-        data = load_data(engine)
-        html = gerar_html(data)
+        data   = load_data(engine)
+        html   = gerar_html(data)
         output = os.path.join(BASE_DIR, "brasileirao_dashboard.html")
         with open(output, "w", encoding="utf-8") as f:
             f.write(html)
