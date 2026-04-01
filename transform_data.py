@@ -8,7 +8,6 @@
 #  - Gols por rodada
 #  - Probabilidades via Monte Carlo
 
-
 import os
 import logging
 import pandas as pd
