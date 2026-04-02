@@ -58,19 +58,30 @@ def load_data(engine):
 
 
 def gerar_html(data: dict) -> str:
-    tabela = data["tabela"].to_dict(orient="records")
-    team_stats = data["team_stats"].to_dict(orient="records")
-    artilharia = data["artilharia"].to_dict(orient="records")
-    partidas = data["partidas"].head(50).to_dict(orient="records")
+    def upper_time(records, *cols):
+        """Converte para maiúsculo as colunas de nome de time informadas."""
+        for r in records:
+            for col in cols:
+                if col in r and r[col]:
+                    r[col] = str(r[col]).upper()
+        return records
+
+    tabela = upper_time(data["tabela"].to_dict(orient="records"), "time")
+    team_stats = upper_time(data["team_stats"].to_dict(orient="records"), "time")
+    artilharia = upper_time(data["artilharia"].to_dict(orient="records"), "clube")
+    partidas = upper_time(
+        data["partidas"].head(50).to_dict(orient="records"), "mandante", "visitante"
+    )
     gols_rodada = data["gols_rodada"].to_dict(orient="records")
-    probabilidades = (
+    probabilidades = upper_time(
         data["probabilidades"].to_dict(orient="records")
         if not data["probabilidades"].empty
-        else []
+        else [],
+        "time",
     )
 
     forma_map = {
-        r["time"]: r.get("forma_str", "")
+        str(r["time"]).upper(): r.get("forma_str", "")
         for r in data["forma"].to_dict(orient="records")
     }
 
