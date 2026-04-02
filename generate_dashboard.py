@@ -6,6 +6,7 @@ import json
 import logging
 import pandas as pd
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 
@@ -87,7 +88,7 @@ def gerar_html(data: dict) -> str:
         for r in data["forma"].to_dict(orient="records")
     }
 
-    gerado_em = datetime.now().strftime("%d/%m/%Y às %H:%M")
+    gerado_em = datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%d/%m/%Y às %H:%M")
 
     html = f"""<!DOCTYPE html>
 <html lang="pt-BR">
