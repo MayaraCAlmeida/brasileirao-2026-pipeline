@@ -45,7 +45,6 @@ def load_data(engine):
         for key, q in queries.items():
             data[key] = pd.read_sql(text(q), conn)
 
-    # Probabilidades vêm do CSV (gerado pelo Monte Carlo no transform_data.py)
     prob_path = os.path.join(BASE_DIR, "dados_processados", "probabilidades.csv")
     if os.path.exists(prob_path):
         data["probabilidades"] = pd.read_csv(prob_path)
@@ -159,12 +158,10 @@ def gerar_html(data: dict) -> str:
   .zona-libertadores {{ border-left: 3px solid #238636; }}
   .zona-sulamericana  {{ border-left: 3px solid #1f6feb; }}
   .zona-rebaixamento  {{ border-left: 3px solid #da3633; }}
-
-  /* Probabilidades */
   .prob-bar-wrap {{ display: flex; align-items: center; gap: 8px; }}
   .prob-bar {{ height: 10px; border-radius: 5px; min-width: 2px; transition: width 0.4s; }}
   .prob-val  {{ font-size: 0.82rem; font-weight: 700; min-width: 42px; text-align: right; }}
-  .prob-campeao       {{ background: #F5C518; }}
+  .prob-campeao      {{ background: #F5C518; }}
   .prob-libertadores {{ background: #238636; }}
   .prob-sulamericana {{ background: #1f6feb; }}
   .prob-rebaixamento {{ background: #da3633; }}
@@ -228,20 +225,16 @@ def gerar_html(data: dict) -> str:
       <table>
         <thead>
           <tr>
-            <th>#</th>
-            <th>Time</th>
-            <th>Pts</th>
-            <th>🏆 Campeão</th>
-            <th>🟢 Libertadores</th>
-            <th>🔵 Sul-Americana</th>
-            <th>🔴 Rebaixamento</th>
+            <th>#</th><th>Time</th><th>Pts</th>
+            <th>🏆 Campeão</th><th>🟢 Libertadores</th>
+            <th>🔵 Sul-Americana</th><th>🔴 Rebaixamento</th>
           </tr>
         </thead>
         <tbody id="prob-body"></tbody>
       </table>
     </div>
     <div class="legend-prob">
-      <span><span class="legend-dot" style="background:#F5C518"></span>Campeão (1º lugar)</span>
+      <span><span class="legend-dot" style="background:#F5C518"></span>Campeão (Top 4)</span>
       <span><span class="legend-dot" style="background:#238636"></span>Libertadores (Top 6)</span>
       <span><span class="legend-dot" style="background:#1f6feb"></span>Sul-Americana (7º–15º)</span>
       <span><span class="legend-dot" style="background:#da3633"></span>Rebaixamento (16º–20º)</span>
@@ -254,22 +247,22 @@ def gerar_html(data: dict) -> str:
   </div>
   <div class="grid-2">
     <div class="card">
-      <h3>🏆 Chance de Título</h3>
-      <div class="chart-container" style="height:480px"><canvas id="chart-prob-campeao"></canvas></div>
+      <h3>🏆 Chance de Título — G4 atual</h3>
+      <div class="chart-container" style="height:180px"><canvas id="chart-prob-campeao"></canvas></div>
     </div>
     <div class="card">
-      <h3>🔴 Risco de Rebaixamento</h3>
-      <div class="chart-container" style="height:480px"><canvas id="chart-prob-rebaixamento"></canvas></div>
+      <h3>🔴 Risco de Rebaixamento — Z4 atual</h3>
+      <div class="chart-container" style="height:180px"><canvas id="chart-prob-rebaixamento"></canvas></div>
     </div>
   </div>
   <div class="grid-2">
     <div class="card">
-      <h3>🟢 Libertadores</h3>
-      <div class="chart-container" style="height:480px"><canvas id="chart-prob-libertadores"></canvas></div>
+      <h3>🟢 Libertadores — G6 atual</h3>
+      <div class="chart-container" style="height:240px"><canvas id="chart-prob-libertadores"></canvas></div>
     </div>
     <div class="card">
-      <h3>🔵 Sul-Americana</h3>
-      <div class="chart-container" style="height:480px"><canvas id="chart-prob-sulamericana"></canvas></div>
+      <h3>🔵 Sul-Americana — 7º ao 15º atual</h3>
+      <div class="chart-container" style="height:380px"><canvas id="chart-prob-sulamericana"></canvas></div>
     </div>
   </div>
 </div>
@@ -370,8 +363,8 @@ function renderTabela() {{
   document.getElementById('tabela-body').innerHTML = TABELA.map((t, i) => {{
     const pos = i + 1;
     let rowCls = '', posCls = 'pos';
-    if (pos <= 6)                  {{ rowCls = 'zona-libertadores'; posCls += ' pos-top4'; }}
-    else if (pos >= 16)            {{ rowCls = 'zona-rebaixamento'; posCls += ' pos-lib'; }}
+    if (pos <= 6)                   {{ rowCls = 'zona-libertadores'; posCls += ' pos-top4'; }}
+    else if (pos >= 16)             {{ rowCls = 'zona-rebaixamento'; posCls += ' pos-lib'; }}
     else if (pos >= 7 && pos <= 15) rowCls = 'zona-sulamericana';
     const forma = FORMA_MAP[t.time] || '';
     const sg    = t.saldo_gols;
@@ -379,12 +372,8 @@ function renderTabela() {{
       <td><span class="${{posCls}}">${{pos}}</span></td>
       <td><span class="time-nome">${{t.time}}</span></td>
       <td><span class="pts">${{t.pontos}}</span></td>
-      <td>${{t.jogos}}</td>
-      <td>${{t.vitorias}}</td>
-      <td>${{t.empates}}</td>
-      <td>${{t.derrotas}}</td>
-      <td>${{t.gols_pro}}</td>
-      <td>${{t.gols_contra}}</td>
+      <td>${{t.jogos}}</td><td>${{t.vitorias}}</td><td>${{t.empates}}</td><td>${{t.derrotas}}</td>
+      <td>${{t.gols_pro}}</td><td>${{t.gols_contra}}</td>
       <td style="color:${{sg>=0?'#238636':'#da3633'}};font-weight:700">${{sg>0?'+':''}}${{sg}}</td>
       <td>${{t.aproveitamento||0}}%</td>
       <td>${{formaHtml(forma)}}</td>
@@ -410,14 +399,14 @@ function renderProbabilidades() {{
   document.getElementById('prob-body').innerHTML = PROBABILIDADES.map((p, i) => {{
     const pos = p.posicao || i + 1;
     let rowCls = '';
-    if (p.prob_libertadores >= 50) rowCls = 'zona-libertadores';
-    else if (p.prob_rebaixamento >= 50) rowCls = 'zona-rebaixamento';
-    else if (p.prob_sulamericana >= 50) rowCls = 'zona-sulamericana';
+    if (pos <= 6)                   rowCls = 'zona-libertadores';
+    else if (pos >= 16)             rowCls = 'zona-rebaixamento';
+    else if (pos >= 7 && pos <= 15) rowCls = 'zona-sulamericana';
     return `<tr class="${{rowCls}}">
       <td><span class="pos">${{pos}}</span></td>
       <td><span class="time-nome">${{p.time}}</span></td>
       <td><span class="pts">${{p.pontos}}</span></td>
-      <td>${{probBar(p.prob_campeao,       'prob-campeao')}}</td>
+      <td>${{probBar(p.prob_campeao,      'prob-campeao')}}</td>
       <td>${{probBar(p.prob_libertadores, 'prob-libertadores')}}</td>
       <td>${{probBar(p.prob_sulamericana, 'prob-sulamericana')}}</td>
       <td>${{probBar(p.prob_rebaixamento, 'prob-rebaixamento')}}</td>
@@ -433,8 +422,13 @@ function renderProbabilidades() {{
     }}
   }};
 
-  // Campeão — top 10
-  const topCampeao = [...PROBABILIDADES].sort((a,b) => b.prob_campeao - a.prob_campeao).slice(0, 20);
+  // Ordena por posição atual e fatia por zona
+  const sortedByPos = [...PROBABILIDADES].sort((a, b) => a.posicao - b.posicao);
+  const topCampeao  = sortedByPos.slice(0, 4);   // G4
+  const topLib      = sortedByPos.slice(0, 6);   // G6
+  const topSul      = sortedByPos.slice(6, 15);  // 7º ao 15º
+  const topReb      = sortedByPos.slice(15, 20); // 16º ao 20º
+
   new Chart(document.getElementById('chart-prob-campeao'), {{
     type: 'bar',
     data: {{
@@ -445,8 +439,6 @@ function renderProbabilidades() {{
     options: {{ ...cfgBase, indexAxis: 'y' }}
   }});
 
-  // Rebaixamento — top 10
-  const topReb = [...PROBABILIDADES].sort((a,b) => b.prob_rebaixamento - a.prob_rebaixamento).slice(0, 20);
   new Chart(document.getElementById('chart-prob-rebaixamento'), {{
     type: 'bar',
     data: {{
@@ -457,8 +449,6 @@ function renderProbabilidades() {{
     options: {{ ...cfgBase, indexAxis: 'y' }}
   }});
 
-  // Libertadores — top 10
-  const topLib = [...PROBABILIDADES].sort((a,b) => b.prob_libertadores - a.prob_libertadores).slice(0, 20);
   new Chart(document.getElementById('chart-prob-libertadores'), {{
     type: 'bar',
     data: {{
@@ -469,8 +459,6 @@ function renderProbabilidades() {{
     options: {{ ...cfgBase, indexAxis: 'y' }}
   }});
 
-  // Sul-Americana — top 10
-  const topSul = [...PROBABILIDADES].sort((a,b) => b.prob_sulamericana - a.prob_sulamericana).slice(0, 20);
   new Chart(document.getElementById('chart-prob-sulamericana'), {{
     type: 'bar',
     data: {{
