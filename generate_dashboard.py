@@ -74,9 +74,11 @@ def gerar_html(data: dict) -> str:
     )
     gols_rodada = data["gols_rodada"].to_dict(orient="records")
     probabilidades = upper_time(
-        data["probabilidades"].to_dict(orient="records")
-        if not data["probabilidades"].empty
-        else [],
+        (
+            data["probabilidades"].to_dict(orient="records")
+            if not data["probabilidades"].empty
+            else []
+        ),
         "time",
     )
 
@@ -125,10 +127,11 @@ def gerar_html(data: dict) -> str:
   .tab-panel.active {{ display: block; }}
   .kpi-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 28px; }}
   .kpi-card {{ background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; text-align: center; }}
-  .kpi-value {{ font-size: 2rem; font-weight: 800; color: var(--amarelo); }}
+  .kpi-value {{ font-size: 2rem; font-weight: 800; color: var(--amarelo); line-height: 1.1; word-break: break-word; overflow-wrap: break-word; }}
+  .kpi-value.kpi-lider {{ font-size: clamp(0.85rem, 2vw, 1.4rem); }}
   .kpi-label {{ font-size: 0.8rem; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }}
   .card {{ background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 22px; margin-bottom: 22px; }}
-  .card h3 {{ font-size: 1rem; font-weight: 700; color: var(--text); margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }}
+  .card h3 {{ font-size: 1rem; font-weight: 700; color: var(--text); margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid var(--border); text-transform: uppercase; letter-spacing: 0.5px; }}
   .grid-2 {{ display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }}
   @media (max-width: 900px) {{ .grid-2 {{ grid-template-columns: 1fr; }} }}
   .table-wrap {{ overflow-x: auto; }}
@@ -358,7 +361,7 @@ function renderKPIs() {{
     {{ label: 'Média Gols/Jogo',  value: PARTIDAS.length ? (totalGols/PARTIDAS.length).toFixed(1) : '—' }},
   ];
   document.getElementById('kpi-grid').innerHTML = kpis.map(k =>
-    `<div class="kpi-card"><div class="kpi-value">${{k.value}}</div><div class="kpi-label">${{k.label}}</div></div>`
+    `<div class="kpi-card"><div class="kpi-value${{k.label==='Líder'?' kpi-lider':''}}">${{k.value}}</div><div class="kpi-label">${{k.label}}</div></div>`
   ).join('');
 }}
 
