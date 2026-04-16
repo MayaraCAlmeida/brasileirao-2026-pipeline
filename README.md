@@ -1,20 +1,44 @@
 # Brasileirão Série A 2026 — Data Pipeline
 
-Pipeline automatizado de coleta, processamento e visualização de dados do Campeonato Brasileiro Série A 2026. Extrai dados em tempo real da CBF via web scraping e PDF oficial, processa e carrega em banco PostgreSQL, e gera um dashboard HTML interativo com classificação, artilharia, estatísticas por time e resultados.
+## Visão Geral
+
+Este projeto automatiza a coleta, processamento e visualização de dados do Campeonato Brasileiro Série A 2026. Extrai dados em tempo real da CBF via web scraping e leitura de PDF oficial, processa e carrega em banco PostgreSQL, e gera um dashboard HTML interativo com classificação, artilharia, estatísticas por time e resultados.
+
+**[🔴 Ver dashboard ao vivo](https://mayaracalmeida.github.io/brasileirao-2026-pipeline)**
+
+### Pipelines Disponíveis
+
+| Pipeline | Descrição | Método de Coleta |
+|---|---|---|
+| **Classificação** | Posição, pontos, V/E/D, gols e aproveitamento oficial | Web scraping (CBF) |
+| **Probabilidades** | Simulação Monte Carlo com 10.000 cenários | Web scraping + cálculo local |
+| **Times** | Desempenho por ataque, defesa, casa/fora e performance score | Web scraping (CBF) |
+| **Artilharia** | Ranking de artilheiros da competição | Web scraping (CBF) |
+| **Partidas** | Placares, rodadas e média de gols por rodada | Extração de PDF oficial (CBF) |
+
+
+### Fluxo de Processamento
+
+1. **Extração** — Scraping do site CBF + leitura do PDF oficial
+2. **Limpeza** — Padronização dos dados brutos com mapeamento de nomes (`NOME_MAP`)
+3. **Transformação** — Feature engineering: `team_stats`, `forma_recente`, `gols_por_rodada`, `performance_score`
+4. **Carga** — Upsert no PostgreSQL (`ON CONFLICT DO UPDATE`) — re-execuções são seguras
+5. **Dashboard** — Geração do `brasileirao_dashboard.html` com gráficos interativos via Chart.js
+6. **Publicação** — Deploy automático no GitHub Pages a cada execução
 
 ---
 
-# Dashboard
+### Dependências de Desenvolvimento
 
-O dashboard é gerado automaticamente como `brasileirao_dashboard.html` e publicado via **GitHub Pages** a cada execução do pipeline.
-
-**[Ver dashboard ao vivo](https://mayaracalmeida.github.io/brasileirao-2026-pipeline)**
+```bash
+pip install -r requirements.txt
+```
 
 ---
 
 ## Estrutura do Projeto
 
-```
+```plaintext
 brasileirao-2026-pipeline/
 │
 ├── extract_data.py          # Extração: scraping CBF + leitura do PDF
@@ -41,7 +65,7 @@ brasileirao-2026-pipeline/
 
 ---
 
-# Arquitetura do Pipeline
+## Arquitetura do Pipeline
 
 ```
 CBF Website  ──scraping──►  extract_data.py
@@ -64,45 +88,45 @@ PDF Oficial  ──pdfplumber──►      │
                                       GitHub Pages
 ```
 
-**Fontes de dados:**
-- **Tabela de classificação** e **artilharia** — scraping do site `cbf.com.br`
-- **Partidas** (placares, datas, estádios) — leitura do PDF oficial da CBF via `pdfplumber`
-
 ---
 
-# Tabelas no Banco de Dados
+## Tabelas no Banco de Dados
 
 | Tabela | Descrição |
 |---|---|
 | `tabela` | Classificação oficial (posição, pontos, V/E/D, gols, aproveitamento) |
-| `partidas` | Todos os jogos (incluindo futuros, sem placar) |
+| `partidas` | Todos os jogos realizados |
 | `partidas_finalizadas` | Jogos encerrados com placar e resultado calculado |
 | `team_stats` | Stats agregadas por time: casa/fora, médias, performance score |
-| `forma_recente` | Forma dos últimos 5 jogos por time |
 | `artilharia` | Ranking de artilheiros |
-| `gols_por_rodada` | Tendência de gols por rodada |
+| `gols_por_rodada` | Média de gols por rodada |
 
-O `load_database.py` usa **upsert** (`ON CONFLICT DO UPDATE`) em todas as tabelas, então re-execuções são seguras — sem risco de duplicação.
+O `load_database.py` usa **upsert** (`ON CONFLICT DO UPDATE`) em todas as tabelas — re-execuções são seguras, sem risco de duplicação.
 
 ---
 
-# Como Executar
+## Como Executar
 
-## Pré-requisitos
+### Pré-requisitos
 
 - Python 3.11+
 - PostgreSQL rodando localmente ou em nuvem
 - PDF da Tabela Detalhada da CBF salvo na raiz do projeto
 
-### Instalação
+### 1. Clonar o repositório
 
 ```bash
 git clone https://github.com/MayaraCAlmeida/brasileirao-2026-pipeline.git
 cd brasileirao-2026-pipeline
+```
+
+### 2. Instalar dependências
+
+```bash
 pip install -r requirements.txt
 ```
 
-### Configuração
+### 3. Configurar `.env`
 
 Copie o arquivo de exemplo e preencha com suas credenciais:
 
@@ -118,35 +142,25 @@ DB_USER=postgres
 DB_PASSWORD=sua_senha
 ```
 
-Crie as tabelas no banco:
+### 4. Criar as tabelas no banco
 
 ```bash
 psql -U postgres -d brasileirao_pipeline -f create_tables.sql
 ```
 
-# Execução
-
-**Rodar o pipeline completo agora:**
+### 5. Executar o Pipeline
 
 ```bash
+# Pipeline completo agora
 python scheduler.py --run-now
-```
 
-**Agendar execução diária (padrão: 06:00 BRT):**
-
-```bash
+# Agendar execução diária (padrão: 06:00 BRT)
 python scheduler.py
-```
 
-**Agendar em horário customizado:**
-
-```bash
+# Agendar em horário customizado
 python scheduler.py --hour 8 --minute 30
-```
 
-**Rodar etapas individualmente:**
-
-```bash
+# Rodar etapas individualmente
 python extract_data.py
 python clean_data.py
 python transform_data.py
@@ -156,7 +170,7 @@ python generate_dashboard.py
 
 ---
 
-# CI/CD com GitHub Actions
+## CI/CD com GitHub Actions
 
 O arquivo `.github/workflows/pipeline.yml` automatiza tudo:
 
@@ -164,7 +178,7 @@ O arquivo `.github/workflows/pipeline.yml` automatiza tudo:
 - **Trigger manual** via `workflow_dispatch`
 - Após o pipeline, o dashboard é publicado automaticamente no **GitHub Pages**
 
-# Configurar os secrets no repositório
+### Configurar os Secrets no Repositório
 
 Vá em **Settings → Secrets and variables → Actions** e adicione:
 
@@ -180,23 +194,27 @@ Ative o GitHub Pages em **Settings → Pages** apontando para a branch `gh-pages
 
 ---
 
-# Métricas Calculadas
+## Métricas Calculadas
 
 ### Performance Score
+
 Índice composto de 0 a 100 por time:
+
 ```
 Score = (aproveitamento × 0.5) + (saldo_gols/jogo × 0.3) + (gols_pro/jogo × 0.2)
 ```
 
 ### Forma Recente
+
 Sequência de resultados (V/E/D) dos últimos 5 jogos, com aproveitamento percentual.
 
 ### Análise Casa × Fora
+
 Comparativo de vitórias, gols e aproveitamento jogando em casa versus fora.
 
 ---
 
-# Queries Analíticas
+## Queries Analíticas
 
 O arquivo `analytics_queries.sql` contém 10 queries prontas, incluindo:
 
@@ -211,7 +229,16 @@ O arquivo `analytics_queries.sql` contém 10 queries prontas, incluindo:
 
 ---
 
-# Tecnologias
+## Monitoramento e Logs
+
+- Logging estruturado via `pipeline.log`
+- Retry automático com backoff exponencial para requisições
+- Verificação de idempotência antes de reprocessar dados já carregados
+- Contagem de registros processados vs. ignorados em cada execução
+
+---
+
+## Tecnologias
 
 | Tecnologia | Uso |
 |---|---|
@@ -226,13 +253,16 @@ O arquivo `analytics_queries.sql` contém 10 queries prontas, incluindo:
 
 ---
 
-# Observações
+## Observações
 
 - A CBF pode demorar algumas horas para atualizar o site após os jogos. O pipeline roda diariamente de manhã, garantindo que os dados do dia anterior estejam disponíveis.
-- O PDF da Tabela Detalhada deve ser atualizado manualmente quando a CBF publicar uma nova versão (normalmente após alterações de datas ou locais).
-- Todos os estádios listados estão sujeitos a alterações pela CBF. Consulte sempre a Tabela Detalhada oficial para informações definitivas.
-
 
 ---
 
 *Dados extraídos do site oficial da CBF. Este projeto não tem vínculo com a Confederação Brasileira de Futebol.*
+
+---
+
+## Responsável Técnica
+
+Desenvolvido por: **Mayara C. Almeida** 
