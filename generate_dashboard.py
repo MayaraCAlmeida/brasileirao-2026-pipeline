@@ -6,7 +6,6 @@ import json
 import logging
 import pandas as pd
 from datetime import datetime
-from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 
@@ -49,11 +48,18 @@ def load_data(engine):
     prob_path = os.path.join(BASE_DIR, "dados_processados", "probabilidades.csv")
     if os.path.exists(prob_path):
         data["probabilidades"] = pd.read_csv(prob_path)
+        log.info(f"  ✔ probabilidades.csv carregado ({len(data['probabilidades'])} times)")
     else:
-        data["probabilidades"] = pd.DataFrame()
-        log.warning(
-            "  probabilidades.csv não encontrado — aba de probabilidades ficará vazia."
-        )
+        # Tenta rodar o Monte Carlo agora como fallback
+        log.warning("  probabilidades.csv não encontrado — tentando rodar Monte Carlo agora...")
+        try:
+            from monte_carlo import run as mc_run
+            data["probabilidades"] = mc_run()
+            log.info("  ✔ Monte Carlo executado como fallback no generate_dashboard")
+        except Exception as mc_err:
+            log.error(f"  ✘ Monte Carlo falhou: {mc_err}", exc_info=True)
+            data["probabilidades"] = pd.DataFrame()
+            log.warning("  Aba de probabilidades ficará vazia.")
 
     return data
 
@@ -88,7 +94,7 @@ def gerar_html(data: dict) -> str:
         for r in data["forma"].to_dict(orient="records")
     }
 
-    gerado_em = datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%d/%m/%Y às %H:%M")
+    gerado_em = datetime.now().strftime("%d/%m/%Y às %H:%M")
 
     html = f"""<!DOCTYPE html>
 <html lang="pt-BR">
