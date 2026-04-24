@@ -22,10 +22,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Instalar Playwright + Chromium
-        run: |
-          pip install playwright==1.44.0
-          playwright install chromium
-          sudo apt-get install -y libasound2t64 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libnss3 libpango-1.0-0 libcairo2
+        run: playwright install chromium --with-deps
 
       - name: Rodar pipeline
         env:
@@ -40,6 +37,7 @@ jobs:
         run: |
           mkdir -p public
           cp brasileirao_dashboard.html public/index.html
+          [ -f dados_processados/probabilidades.csv ] && cp dados_processados/probabilidades.csv public/probabilidades.csv || echo "probabilidades.csv não encontrado, pulando"
 
       - name: Publicar no GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
