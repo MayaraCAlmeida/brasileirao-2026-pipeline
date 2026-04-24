@@ -11,11 +11,15 @@ import os
 import re
 import time
 import logging
+import urllib3
 import requests
 import pdfplumber
 import pandas as pd
 from datetime import datetime
 from bs4 import BeautifulSoup
+
+# Suprime warnings de SSL (necessário pois o site da CBF tem problemas de certificado)
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 RAW_DIR = os.path.join(BASE_DIR, "dados_brutos")
@@ -47,7 +51,8 @@ log = logging.getLogger(__name__)
 
 
 def get_soup(url):
-    r = requests.get(url, headers=HEADERS, timeout=20)
+    # verify=False ignora erro de certificado SSL do site da CBF
+    r = requests.get(url, headers=HEADERS, timeout=20, verify=False)
     r.raise_for_status()
     time.sleep(1)
     return BeautifulSoup(r.text, "html.parser")
