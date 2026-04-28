@@ -93,10 +93,12 @@ def gerar_html(data: dict) -> str:
         "time",
     )
 
+    forma_records = data["forma"].to_dict(orient="records")
     forma_map = {
         str(r["time"]).upper(): r.get("forma_str", "")
-        for r in data["forma"].to_dict(orient="records")
+        for r in forma_records
     }
+    forma_recente = upper_time(forma_records, "time")
 
     gerado_em = datetime.now().strftime("%d/%m/%Y às %H:%M")
 
@@ -216,6 +218,17 @@ def gerar_html(data: dict) -> str:
   .legend-prob {{ display: flex; gap: 20px; flex-wrap: wrap; font-size: 0.78rem; color: var(--muted); margin-top: 14px; }}
   .legend-dot {{ display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }}
   .nota-mc {{ font-size: 0.75rem; color: var(--muted); margin-top: 12px; font-style: italic; }}
+  /* ── desempenho recente ── */
+  .aprov-bar-wrap {{ display: flex; align-items: center; gap: 8px; }}
+  .aprov-bar-bg {{ flex: 1; background: rgba(255,255,255,0.07); border-radius: 4px; height: 8px; overflow: hidden; }}
+  .aprov-bar-fill {{ height: 100%; border-radius: 4px; transition: width 0.4s; }}
+  .aprov-val {{ font-size: 0.82rem; font-weight: 700; min-width: 38px; text-align: right; }}
+  .cartao-amar {{ color: #F5C518; font-weight: 800; }}
+  .cartao-verm {{ color: #da3633; font-weight: 800; }}
+  .aprov-geral {{ font-size: 0.75rem; color: var(--muted); }}
+  .delta-pos {{ color: #238636; font-weight: 700; font-size: 0.8rem; }}
+  .delta-neg {{ color: #da3633; font-weight: 700; font-size: 0.8rem; }}
+  .delta-neu {{ color: var(--muted); font-weight: 700; font-size: 0.8rem; }}
 </style>
 </head>
 <body>
@@ -237,6 +250,7 @@ def gerar_html(data: dict) -> str:
   <button class="tab-btn" onclick="showTab('times', this)">📊 Times</button>
   <button class="tab-btn" onclick="showTab('artilharia', this)">⚽ Artilharia</button>
   <button class="tab-btn" onclick="showTab('partidas', this)">🎯 Partidas</button>
+  <button class="tab-btn" onclick="showTab('desempenho', this)">🔥 Desempenho</button>
 </div>
 
 <div class="content">
@@ -356,6 +370,38 @@ def gerar_html(data: dict) -> str:
       <div class="chart-container"><canvas id="chart-gols-rodada"></canvas></div>
     </div>
   </div>
+<div id="tab-desempenho" class="tab-panel">
+  <div class="card">
+    <h3>🔥 Forma Recente — Últimos Jogos</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Time</th>
+            <th>J</th><th>V</th><th>E</th><th>D</th>
+            <th>Pts</th><th>Aprov. Recente</th><th>Aprov. Geral</th><th>Δ</th>
+          </tr>
+        </thead>
+        <tbody id="desempenho-forma-body"></tbody>
+      </table>
+    </div>
+    <p style="font-size:0.75rem;color:var(--muted);margin-top:10px">* Δ = aproveitamento recente menos aproveitamento geral. Positivo = time em alta.</p>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <h3>🟡 Cartões Amarelos — Ranking</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>Time</th><th>🟡 Amarelos</th><th>🔴 Vermelhos</th></tr></thead>
+          <tbody id="desempenho-cartoes-body"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <h3>📊 Aproveitamento: Recente vs Geral</h3>
+      <div class="chart-container" style="height:340px"><canvas id="chart-aprov-comparativo"></canvas></div>
+    </div>
+  </div>
 </div>
 
 </div>
@@ -364,6 +410,7 @@ def gerar_html(data: dict) -> str:
 const TABELA         = {json.dumps(tabela,         default=str)};
 const TEAM_STATS     = {json.dumps(team_stats,     default=str)};
 const FORMA_MAP      = {json.dumps(forma_map)};
+const FORMA_RECENTE  = {json.dumps(forma_recente,  default=str)};
 const ARTILHARIA     = {json.dumps(artilharia,     default=str)};
 const PARTIDAS       = {json.dumps(partidas,       default=str)};
 const GOLS_RODADA    = {json.dumps(gols_rodada,    default=str)};
@@ -380,6 +427,7 @@ function showTab(name, btn) {{
   if (name === 'times'          && !chartsRendered.times)          {{ renderChartsTime();    chartsRendered.times = true; }}
   if (name === 'artilharia'     && !chartsRendered.artilharia)     {{ renderArtilharia();    chartsRendered.artilharia = true; }}
   if (name === 'partidas'       && !chartsRendered.partidas)       {{ renderPartidas();      chartsRendered.partidas = true; }}
+  if (name === 'desempenho'     && !chartsRendered.desempenho)     {{ renderDesempenho();    chartsRendered.desempenho = true; }}
 }}
 
 function renderKPIs() {{
@@ -677,6 +725,114 @@ function renderPartidas() {{
       }}
     }});
   }}
+}}
+
+function renderDesempenho() {{
+  /* ── aproveitamento geral via TABELA ── */
+  const aprovGeralMap = {{}};
+  TABELA.forEach(t => {{
+    aprovGeralMap[t.time] = parseFloat(t.aproveitamento) || 0;
+  }});
+
+  /* ── tabela de forma recente ── */
+  const formaSorted = [...FORMA_RECENTE].sort((a, b) => {{
+    const pa = (a.pontos_recentes || 0) / Math.max(a.jogos_recentes || 1, 1);
+    const pb = (b.pontos_recentes || 0) / Math.max(b.jogos_recentes || 1, 1);
+    return pb - pa;
+  }});
+
+  document.getElementById('desempenho-forma-body').innerHTML = formaSorted.map((f, i) => {{
+    const j  = f.jogos_recentes    || 0;
+    const v  = f.vitorias_recentes || 0;
+    const e  = f.empates_recentes  || 0;
+    const d  = f.derrotas_recentes || 0;
+    const pt = f.pontos_recentes   || 0;
+    const aprovRec   = j > 0 ? ((pt / (j * 3)) * 100) : 0;
+    const aprovGeral = aprovGeralMap[f.time] || 0;
+    const delta      = aprovRec - aprovGeral;
+    const deltaCls   = delta > 2 ? 'delta-pos' : delta < -2 ? 'delta-neg' : 'delta-neu';
+    const deltaStr   = (delta > 0 ? '+' : '') + delta.toFixed(1) + '%';
+
+    /* barra de aproveitamento recente com cor dinâmica */
+    const barColor = aprovRec >= 60 ? '#238636' : aprovRec >= 40 ? '#F5C518' : '#da3633';
+
+    return `<tr>
+      <td><span class="pos">${{i + 1}}</span></td>
+      <td><span class="time-nome">${{f.time}}</span></td>
+      <td>${{j}}</td><td>${{v}}</td><td>${{e}}</td><td>${{d}}</td>
+      <td><span class="pts">${{pt}}</span></td>
+      <td>
+        <div class="aprov-bar-wrap">
+          <div class="aprov-bar-bg">
+            <div class="aprov-bar-fill" style="width:${{aprovRec.toFixed(1)}}%;background:${{barColor}}"></div>
+          </div>
+          <span class="aprov-val">${{aprovRec.toFixed(1)}}%</span>
+        </div>
+      </td>
+      <td><span class="aprov-geral">${{aprovGeral.toFixed(1)}}%</span></td>
+      <td><span class="${{deltaCls}}">${{deltaStr}}</span></td>
+    </tr>`;
+  }}).join('');
+
+  /* ── cartões — vem de TABELA (cartoes_amar / cartoes_verm) ── */
+  const cartoesSorted = [...TABELA].sort((a, b) => (b.cartoes_amar || 0) - (a.cartoes_amar || 0));
+
+  document.getElementById('desempenho-cartoes-body').innerHTML = cartoesSorted.map((t, i) => `
+    <tr>
+      <td><span class="pos">${{i + 1}}</span></td>
+      <td><span class="time-nome">${{t.time}}</span></td>
+      <td><span class="cartao-amar">🟡 ${{t.cartoes_amar || 0}}</span></td>
+      <td><span class="cartao-verm">🔴 ${{t.cartoes_verm || 0}}</span></td>
+    </tr>
+  `).join('');
+
+  /* ── gráfico comparativo aproveitamento recente vs geral ── */
+  const chartData = formaSorted.slice(0, 15).map(f => {{
+    const j  = f.jogos_recentes  || 0;
+    const pt = f.pontos_recentes || 0;
+    return {{
+      time:       f.time,
+      aprovRec:   j > 0 ? parseFloat(((pt / (j * 3)) * 100).toFixed(1)) : 0,
+      aprovGeral: aprovGeralMap[f.time] || 0,
+    }};
+  }});
+
+  new Chart(document.getElementById('chart-aprov-comparativo'), {{
+    type: 'bar',
+    data: {{
+      labels: chartData.map(d => d.time),
+      datasets: [
+        {{
+          label: 'Aproveitamento Recente',
+          data: chartData.map(d => d.aprovRec),
+          backgroundColor: 'rgba(245,197,24,0.75)',
+          borderColor: '#F5C518',
+          borderWidth: 1,
+          borderRadius: 4,
+        }},
+        {{
+          label: 'Aproveitamento Geral',
+          data: chartData.map(d => d.aprovGeral),
+          backgroundColor: 'rgba(0,155,58,0.5)',
+          borderColor: '#009B3A',
+          borderWidth: 1,
+          borderRadius: 4,
+        }},
+      ]
+    }},
+    options: {{
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {{
+        legend: {{ labels: {{ color: '#e6edf3' }} }},
+      }},
+      scales: {{
+        x: {{ ticks: {{ color: '#8b949e', callback: v => v + '%' }}, grid: {{ color: '#30363d' }}, max: 100 }},
+        y: {{ ticks: {{ color: '#e6edf3' }}, grid: {{ color: '#30363d' }} }},
+      }},
+    }}
+  }});
 }}
 
 renderKPIs();
