@@ -48,12 +48,16 @@ def load_data(engine):
     prob_path = os.path.join(BASE_DIR, "dados_processados", "probabilidades.csv")
     if os.path.exists(prob_path):
         data["probabilidades"] = pd.read_csv(prob_path)
-        log.info(f"  ✔ probabilidades.csv carregado ({len(data['probabilidades'])} times)")
+        log.info(
+            f"  ✔ probabilidades.csv carregado ({len(data['probabilidades'])} times)"
+        )
     else:
-        # Tenta rodar o Monte Carlo agora como fallback
-        log.warning("  probabilidades.csv não encontrado — tentando rodar Monte Carlo agora...")
+        log.warning(
+            "  probabilidades.csv não encontrado — tentando rodar Monte Carlo agora..."
+        )
         try:
             from monte_carlo import run as mc_run
+
             data["probabilidades"] = mc_run()
             log.info("  ✔ Monte Carlo executado como fallback no generate_dashboard")
         except Exception as mc_err:
@@ -166,15 +170,38 @@ def gerar_html(data: dict) -> str:
   .artilheiro-nome {{ font-weight: 700; }}
   .artilheiro-time {{ font-size: 0.78rem; color: var(--muted); }}
   .artilheiro-gols {{ font-size: 1.4rem; font-weight: 800; color: var(--verde); }}
-  .partida-card {{ background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 10px;
-                   padding: 14px 18px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }}
+  .partida-card {{
+    background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 18px; margin-bottom: 10px;
+  }}
+  .partida-main {{
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  }}
   .partida-time {{ flex: 1; text-align: center; }}
   .partida-time.mandante {{ text-align: right; }}
   .partida-time.visitante {{ text-align: left; }}
   .partida-nome {{ font-weight: 700; font-size: 0.95rem; }}
+  /* resultado ao lado do nome do time */
+  .partida-resultado {{
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-top: 2px;
+  }}
+  .res-vitoria  {{ color: #238636; }}
+  .res-empate   {{ color: var(--muted); }}
+  .res-derrota  {{ color: #da3633; }}
   .partida-placar {{ text-align: center; min-width: 90px; }}
   .placar {{ font-size: 1.5rem; font-weight: 900; color: var(--amarelo); }}
   .placar-rodada {{ font-size: 0.72rem; color: var(--muted); }}
+  /* linha de meta-info: estádio / cidade-UF / hora */
+  .partida-meta {{
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    margin-top: 8px; padding-top: 8px;
+    border-top: 1px solid rgba(48,54,61,0.5);
+    font-size: 0.72rem; color: var(--muted);
+    flex-wrap: wrap;
+  }}
+  .partida-meta span {{ display: flex; align-items: center; gap: 3px; }}
   .chart-container {{ position: relative; height: 280px; }}
   .zona-libertadores {{ border-left: 3px solid #238636; }}
   .zona-sulamericana  {{ border-left: 3px solid #1f6feb; }}
@@ -372,14 +399,6 @@ function renderKPIs() {{
   ).join('');
 }}
 
-function formaHtml(str) {{
-  if (!str) return '';
-  return '<div class="forma">' + str.split('').slice(-5).map(c => {{
-    const cls = c==='V'?'forma-v':c==='E'?'forma-e':'forma-d';
-    return `<div class="${{cls}}">${{c}}</div>`;
-  }}).join('') + '</div>';
-}}
-
 function renderTabela() {{
   document.getElementById('tabela-body').innerHTML = TABELA.map((t, i) => {{
     const pos = i + 1;
@@ -402,12 +421,39 @@ function renderTabela() {{
   }}).join('');
 }}
 
+function formaHtml(str) {{
+  if (!str) return '';
+  return '<div class="forma">' + str.split('').slice(-5).map(c => {{
+    const cls = c==='V'?'forma-v':c==='E'?'forma-e':'forma-d';
+    return `<div class="${{cls}}">${{c}}</div>`;
+  }}).join('') + '</div>';
+}}
+
 function probBar(val, cls) {{
   const w = Math.min(val, 100);
   return `<div class="prob-bar-wrap">
     <div class="prob-bar ${{cls}}" style="width:${{w * 1.5}}px"></div>
     <span class="prob-val">${{val}}%</span>
   </div>`;
+}}
+
+/* ── helpers para resultado ── */
+function resCls(res) {{
+  if (!res) return '';
+  const r = String(res).trim().toUpperCase();
+  if (r === 'V') return 'res-vitoria';
+  if (r === 'E') return 'res-empate';
+  if (r === 'D') return 'res-derrota';
+  return '';
+}}
+
+function resLabel(res) {{
+  if (!res) return '';
+  const r = String(res).trim().toUpperCase();
+  if (r === 'V') return '● Vitória';
+  if (r === 'E') return '● Empate';
+  if (r === 'D') return '● Derrota';
+  return '';
 }}
 
 function renderProbabilidades() {{
@@ -443,12 +489,11 @@ function renderProbabilidades() {{
     }}
   }};
 
-  // Ordena por posição atual e fatia por zona
   const sortedByPos = [...PROBABILIDADES].sort((a, b) => a.posicao - b.posicao);
-  const topCampeao  = sortedByPos.slice(0, 4);   // G4
-  const topLib      = sortedByPos.slice(0, 6);   // G6
-  const topSul      = sortedByPos.slice(6, 15);  // 7º ao 15º
-  const topReb      = sortedByPos.slice(15, 20); // 16º ao 20º
+  const topCampeao  = sortedByPos.slice(0, 4);
+  const topLib      = sortedByPos.slice(0, 6);
+  const topSul      = sortedByPos.slice(6, 15);
+  const topReb      = sortedByPos.slice(15, 20);
 
   new Chart(document.getElementById('chart-prob-campeao'), {{
     type: 'bar',
@@ -568,16 +613,55 @@ function renderArtilharia() {{
 }}
 
 function renderPartidas() {{
-  document.getElementById('partidas-list').innerHTML = PARTIDAS.slice(0,15).map(p => `
+  document.getElementById('partidas-list').innerHTML = PARTIDAS.slice(0,15).map(p => {{
+
+    /* ── meta-info: estádio, cidade/UF, hora ── */
+    const estadio  = p.estadio  || null;
+    const cidade   = p.cidade   || null;
+    const uf       = p.uf       || null;
+    const hora     = p.hora     || null;
+
+    const localStr = [cidade, uf].filter(Boolean).join('/');
+
+    let metaParts = [];
+    if (estadio)  metaParts.push(`<span>🏟️ ${{estadio}}</span>`);
+    if (localStr) metaParts.push(`<span>📍 ${{localStr}}</span>`);
+    if (hora)     metaParts.push(`<span>🕐 ${{hora}}</span>`);
+
+    const metaRow = metaParts.length
+      ? `<div class="partida-meta">${{metaParts.join('<span style="color:var(--border)">|</span>')}}</div>`
+      : '';
+
+    /* ── resultado de cada time (V / E / D) ── */
+    const resMand = p.resultado_mandante || null;
+    const resVisi = p.resultado_visitante || null;
+
+    const resMandHtml = resMand
+      ? `<div class="partida-resultado ${{resCls(resMand)}}">${{resLabel(resMand)}}</div>`
+      : '';
+    const resVisiHtml = resVisi
+      ? `<div class="partida-resultado ${{resCls(resVisi)}}">${{resLabel(resVisi)}}</div>`
+      : '';
+
+    return `
     <div class="partida-card">
-      <div class="partida-time mandante"><div class="partida-nome">${{p.mandante}}</div></div>
-      <div class="partida-placar">
-        <div class="placar">${{p.gols_mandante}} × ${{p.gols_visitante}}</div>
-        <div class="placar-rodada">Rodada ${{p.rodada}}</div>
+      <div class="partida-main">
+        <div class="partida-time mandante">
+          <div class="partida-nome">${{p.mandante}}</div>
+          ${{resMandHtml}}
+        </div>
+        <div class="partida-placar">
+          <div class="placar">${{p.gols_mandante}} × ${{p.gols_visitante}}</div>
+          <div class="placar-rodada">Rodada ${{p.rodada}}</div>
+        </div>
+        <div class="partida-time visitante">
+          <div class="partida-nome">${{p.visitante}}</div>
+          ${{resVisiHtml}}
+        </div>
       </div>
-      <div class="partida-time visitante"><div class="partida-nome">${{p.visitante}}</div></div>
-    </div>
-  `).join('');
+      ${{metaRow}}
+    </div>`;
+  }}).join('');
 
   if (GOLS_RODADA.length > 0) {{
     new Chart(document.getElementById('chart-gols-rodada'), {{
