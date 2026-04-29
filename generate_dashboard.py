@@ -250,7 +250,6 @@ def gerar_html(data: dict) -> str:
   <button class="tab-btn" onclick="showTab('times', this)">📊 Times</button>
   <button class="tab-btn" onclick="showTab('artilharia', this)">⚽ Artilharia</button>
   <button class="tab-btn" onclick="showTab('partidas', this)">🎯 Partidas</button>
-  <button class="tab-btn" onclick="showTab('desempenho', this)">🔥 Desempenho</button>
 </div>
 
 <div class="content">
