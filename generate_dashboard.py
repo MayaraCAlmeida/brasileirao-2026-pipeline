@@ -94,13 +94,13 @@ def gerar_html(data: dict) -> str:
     )
 
     forma_records = data["forma"].to_dict(orient="records")
-    forma_map = {
-        str(r["time"]).upper(): r.get("forma_str", "")
-        for r in forma_records
-    }
+    forma_map = {str(r["time"]).upper(): r.get("forma_str", "") for r in forma_records}
     forma_recente = upper_time(forma_records, "time")
 
-    gerado_em = datetime.now().strftime("%d/%m/%Y às %H:%M")
+    from datetime import datetime, timezone, timedelta
+
+    BRT = timezone(timedelta(hours=-3))
+    gerado_em = datetime.now(BRT).strftime("%d/%m/%Y às %H:%M")
 
     html = f"""<!DOCTYPE html>
 <html lang="pt-BR">
