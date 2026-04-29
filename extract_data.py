@@ -25,7 +25,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 RAW_DIR = os.path.join(BASE_DIR, "dados_brutos")
 os.makedirs(RAW_DIR, exist_ok=True)
 
-# -- caminho do PDF da CBF 
+# -- caminho do PDF da CBF
 PDF_PATH = os.path.join(BASE_DIR, "Tabela_Detalhada_BSA_2026.pdf")
 # --
 
@@ -50,12 +50,18 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 
-def get_soup(url):
-    # verify=False ignora erro de certificado SSL do site da CBF
-    r = requests.get(url, headers=HEADERS, timeout=20, verify=False)
-    r.raise_for_status()
-    time.sleep(1)
-    return BeautifulSoup(r.text, "html.parser")
+def get_soup(url, max_attempts=3):
+    for attempt in range(max_attempts):
+        try:
+            r = requests.get(url, headers=HEADERS, timeout=20, verify=False)
+            r.raise_for_status()
+            time.sleep(1)
+            return BeautifulSoup(r.text, "html.parser")
+        except Exception as e:
+            wait = 2 ** attempt
+            log.warning(f"Tentativa {attempt + 1} falhou: {e}. Aguardando {wait}s...")
+            time.sleep(wait)
+    raise RuntimeError(f"Todas as {max_attempts} tentativas falharam para: {url}")
 
 
 def save_raw(df, name):
@@ -66,9 +72,9 @@ def save_raw(df, name):
     return path
 
 
-
 # TABELA DE CLASSIFICAÇÃO (CBF scraping)
 # --------------------------------------------------------
+
 
 def extract_tabela():
     log.info("► Tabela de classificação (CBF)...")
@@ -128,7 +134,6 @@ def extract_tabela():
     return df
 
 
-
 # ARTILHARIA (CBF scraping)
 # --------------------------------------------------------
 def extract_artilharia():
@@ -184,7 +189,6 @@ def extract_artilharia():
     df = df.sort_values("posicao").reset_index(drop=True)
     save_raw(df, "artilharia")
     return df
-
 
 
 # PARTIDAS (PDF oficial da CBF)
@@ -266,7 +270,6 @@ def extract_partidas():
     return df
 
 
-
 # PLACARES VIA PLAYWRIGHT (CBF — complementa o PDF)
 # O site da CBF renderiza os jogos via JavaScript, então requests
 # + BeautifulSoup só vê HTML estático sem placares. O Playwright
@@ -319,7 +322,7 @@ def scrape_placares_cbf(df_partidas: pd.DataFrame) -> pd.DataFrame:
 
         soup = BeautifulSoup(html, "html.parser")
 
-        # Tentativa 1: data-jogo 
+        # Tentativa 1: data-jogo
         jogos_html = soup.find_all(attrs={"data-jogo": True})
         if jogos_html:
             for bloco in jogos_html:
@@ -336,7 +339,7 @@ def scrape_placares_cbf(df_partidas: pd.DataFrame) -> pd.DataFrame:
                     placares_encontrados += int(mask.sum())
             log.info(f"  → data-jogo: {placares_encontrados} placares")
 
-        # Tentativa 2: links /jogos/campeonato-brasileiro/REF 
+        # Tentativa 2: links /jogos/campeonato-brasileiro/REF
         if placares_encontrados == 0:
             for a in soup.find_all(
                 "a", href=re.compile(r"/jogos/campeonato-brasileiro/(\d+)")
@@ -358,7 +361,7 @@ def scrape_placares_cbf(df_partidas: pd.DataFrame) -> pd.DataFrame:
                     placares_encontrados += int(mask.sum())
             log.info(f"  → links: {placares_encontrados} placares")
 
-        # Tentativa 3: match por nome de time no texto 
+        # Tentativa 3: match por nome de time no texto
         if placares_encontrados == 0:
             texto_pagina = soup.get_text(" ")
             for _, row in df[df["gols_mandante"].isna()].iterrows():
@@ -388,8 +391,8 @@ def scrape_placares_cbf(df_partidas: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-
 # MAIN
+
 
 def run():
     log.info("=" * 60)
