@@ -236,7 +236,7 @@ def gerar_html(data: dict) -> str:
 <div class="header">
   <div>
     <div class="badge">⚽ 2026</div>
-    <h1>🇧🇷 Brasileirão Série A 2026</h1>
+    <h1> Brasileirão Série A 2026</h1>
   </div>
   <div class="meta">
     <div>Atualizado em</div>
