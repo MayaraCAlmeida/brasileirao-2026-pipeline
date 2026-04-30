@@ -58,7 +58,7 @@ def get_soup(url, max_attempts=3):
             time.sleep(1)
             return BeautifulSoup(r.text, "html.parser")
         except Exception as e:
-            wait = 2 ** attempt
+            wait = 2 ** (attempt + 1)  # 2s, 4s, 8s
             log.warning(f"Tentativa {attempt + 1} falhou: {e}. Aguardando {wait}s...")
             time.sleep(wait)
     raise RuntimeError(f"Todas as {max_attempts} tentativas falharam para: {url}")
