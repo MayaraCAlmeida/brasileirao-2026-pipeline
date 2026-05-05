@@ -1,166 +1,229 @@
 # Brasileirão Série A 2026 — Data Pipeline
 
-## Visão Geral
+> Pipeline de dados end-to-end com ingestão automatizada, processamento analítico, simulação estatística, persistência em banco relacional e publicação de dashboard interativo via CI/CD.
 
-Este projeto automatiza a coleta, processamento e visualização de dados do Campeonato Brasileiro Série A 2026. Extrai dados em tempo real da CBF via web scraping e leitura de PDF oficial, processa e carrega em banco PostgreSQL, e gera um dashboard HTML interativo com classificação, artilharia, estatísticas por time e resultados.
+**[Dashboard](https://mayaracalmeida.github.io/brasileirao-2026-pipeline)**
 
-**[🔴 Ver dashboard ao vivo](https://mayaracalmeida.github.io/brasileirao-2026-pipeline)**
+---
 
-### Pipelines Disponíveis
+# O que este projeto faz
 
-| Pipeline | Descrição | Método de Coleta |
+Coleta dados em tempo real do Campeonato Brasileiro Série A 2026 diretamente das fontes oficiais da CBF (web scraping + PDF oficial), processa e enriquece com métricas derivadas, persiste em PostgreSQL com garantia de idempotência, e publica um dashboard HTML interativo atualizado automaticamente via GitHub Actions.
+
+Todo o pipeline é executado sem intervenção manual.
+
+---
+
+# Pipelines
+
+| Pipeline | Fonte | O que entrega |
 |---|---|---|
-| **Classificação** | Posição, pontos, V/E/D, gols e aproveitamento oficial | Web scraping (CBF) |
-| **Probabilidades** | Simulação Monte Carlo com 10.000 cenários | Web scraping + cálculo local |
-| **Times** | Desempenho por ataque, defesa, casa/fora e performance score | Web scraping (CBF) |
-| **Artilharia** | Ranking de artilheiros da competição | Web scraping (CBF) |
-| **Partidas** | Placares, rodadas e média de gols por rodada | Extração de PDF oficial (CBF) |
-
-
-### Fluxo de Processamento
-
-1. **Extração** — Scraping do site CBF + leitura do PDF oficial
-2. **Limpeza** — Padronização dos dados brutos com mapeamento de nomes (`NOME_MAP`)
-3. **Transformação** — Feature engineering: `team_stats`, `forma_recente`, `gols_por_rodada`, `performance_score`
-4. **Carga** — Upsert no PostgreSQL (`ON CONFLICT DO UPDATE`) — re-execuções são seguras
-5. **Dashboard** — Geração do `brasileirao_dashboard.html` com gráficos interativos via Chart.js
-6. **Publicação** — Deploy automático no GitHub Pages a cada execução
+| **Classificação** | Web scraping (CBF) | Posição, pontos, V/E/D, gols, aproveitamento oficial |
+| **Probabilidades** | Web scraping + cálculo local | Simulação Monte Carlo (10.000 cenários) de título/rebaixamento |
+| **Times** | Web scraping (CBF) | Performance score composto, casa vs. fora, ataque e defesa |
+| **Artilharia** | Web scraping (CBF) | Ranking de goleadores da competição |
+| **Partidas** | PDF oficial (CBF) | Placares, rodadas e tendência de gols |
 
 ---
 
-### Dependências de Desenvolvimento
+# Arquitetura
 
-```bash
-pip install -r requirements.txt
-```
-
----
-
-## Estrutura do Projeto
-
-```plaintext
-brasileirao-2026-pipeline/
-│
-├── extract_data.py          # Extração: scraping CBF + leitura do PDF
-├── clean_data.py            # Limpeza e padronização dos dados brutos
-├── transform_data.py        # Feature engineering e métricas derivadas
-├── load_database.py         # Carga no PostgreSQL com upsert
-├── generate_dashboard.py    # Geração do dashboard HTML
-├── scheduler.py             # Orquestrador e agendador do pipeline
-│
-├── create_tables.sql        # DDL das tabelas do banco
-├── analytics_queries.sql    # Queries analíticas prontas para uso
-│
-├── Tabela_Detalhada_BSA_2026.pdf  # Tabela oficial da CBF (fonte das partidas)
-├── brasileirao_dashboard.html     # Dashboard gerado (atualizado a cada run)
-│
-├── dados_brutos/            # CSVs brutos (gerados pelo extract_data.py)
-├── dados_processados/       # CSVs limpos (gerados pelo clean_data.py)
-│
-├── .github/workflows/pipeline.yml  # CI/CD: execução diária + deploy no Pages
-├── .env.example             # Exemplo de variáveis de ambiente
-├── requirements.txt         # Dependências Python
-└── pipeline.log             # Log de execuções
-```
-
----
-
-## Arquitetura do Pipeline
+# Implementação atual
 
 ```
 CBF Website  ──scraping──►  extract_data.py
-PDF Oficial  ──pdfplumber──►      │
-                                  ▼
-                           clean_data.py
-                           (limpeza + NOME_MAP)
-                                  │
-                                  ▼
-                         transform_data.py
-                     (team_stats, forma_recente,
-                      gols_por_rodada, performance_score)
-                                  │
-                          ┌───────┴────────┐
-                          ▼                ▼
-                   load_database.py   generate_dashboard.py
-                   (PostgreSQL upsert)  (HTML interativo)
-                                             │
-                                             ▼
-                                      GitHub Pages
+PDF Oficial  ──pdfplumber──►       │
+                                   ▼
+                            clean_data.py
+                         (limpeza + NOME_MAP)
+                                   │
+                                   ▼
+                          transform_data.py
+                      (team_stats · forma_recente
+                       gols_por_rodada · performance_score)
+                                   │
+                         ┌─────────┴──────────┐
+                         ▼                    ▼
+                  load_database.py    generate_dashboard.py
+                (PostgreSQL · upsert)   (HTML · Chart.js)
+                                              │
+                                      GitHub Actions CI/CD
+                                              │
+                                        GitHub Pages
 ```
+
+# Arquitetura cloud equivalente (AWS)
+
+Este pipeline foi projetado com separação de camadas compatível com arquiteturas cloud. O mapeamento direto para AWS seria:
+
+| Componente atual | Equivalente AWS | Função |
+|---|---|---|
+| `extract_data.py` | AWS Lambda / Glue Crawler | Ingestão e scraping |
+| `dados_brutos/` (CSV) | Amazon S3 (raw layer) | Data Lake — camada bruta |
+| `clean_data.py` + `transform_data.py` | AWS Glue ETL / PySpark (EMR) | Processamento e feature engineering |
+| `dados_processados/` (CSV) | Amazon S3 (processed layer) | Data Lake — camada processada |
+| `load_database.py` | Amazon RDS (PostgreSQL) | Persistência relacional gerenciada |
+| `scheduler.py` | Apache Airflow (MWAA) | Orquestração e agendamento |
+| `generate_dashboard.py` | Amazon QuickSight / S3 static hosting | Visualização |
+| GitHub Actions | AWS CodePipeline + CodeBuild | CI/CD |
+
+A separação entre extração, limpeza, transformação e carga segue o padrão **ELT em camadas (Bronze → Silver → Gold)**, escalável para volumes maiores sem refatoração da lógica de negócio.
 
 ---
 
-## Tabelas no Banco de Dados
+# Fluxo de processamento
+
+1. **Extração** — scraping do site CBF + leitura estruturada do PDF oficial com `pdfplumber`
+2. **Limpeza** — padronização dos dados brutos com mapeamento canônico de nomes (`NOME_MAP`)
+3. **Transformação** — feature engineering: `team_stats`, `forma_recente`, `gols_por_rodada`, `performance_score`
+4. **Carga** — upsert no PostgreSQL (`ON CONFLICT DO UPDATE`); re-execuções são idempotentes
+5. **Dashboard** — geração do `brasileirao_dashboard.html` com gráficos interativos
+6. **Publicação** — deploy automático no GitHub Pages a cada execução do pipeline
+
+---
+
+# Métricas calculadas
+
+# Performance Score (índice 0–100)
+
+```
+Score = (aproveitamento × 0.5) + (saldo_gols/jogo × 0.3) + (gols_pro/jogo × 0.2)
+```
+
+Permite ranquear times além da tabela de pontos — captura consistência ofensiva e defensiva.
+
+# Forma Recente
+
+Sequência de resultados (V/E/D) dos últimos 5 jogos com aproveitamento percentual do período.
+
+# Análise Casa × Fora
+
+Comparativo de vitórias, gols marcados e aproveitamento em jogos como mandante vs. visitante.
+
+# Simulação Monte Carlo
+
+10.000 cenários simulados para projetar probabilidade de título, classificação para Libertadores e rebaixamento — recalculado a cada execução.
+
+---
+
+# Banco de dados
 
 | Tabela | Descrição |
 |---|---|
 | `tabela` | Classificação oficial (posição, pontos, V/E/D, gols, aproveitamento) |
-| `partidas` | Todos os jogos realizados |
+| `partidas` | Todos os jogos registrados |
 | `partidas_finalizadas` | Jogos encerrados com placar e resultado calculado |
 | `team_stats` | Stats agregadas por time: casa/fora, médias, performance score |
 | `artilharia` | Ranking de artilheiros |
 | `gols_por_rodada` | Média de gols por rodada |
 
-O `load_database.py` usa **upsert** (`ON CONFLICT DO UPDATE`) em todas as tabelas — re-execuções são seguras, sem risco de duplicação.
+Todas as tabelas utilizam **upsert** (`ON CONFLICT DO UPDATE`) — sem duplicação mesmo em re-execuções.
 
 ---
 
-## Como Executar
+# CI/CD
 
-### Pré-requisitos
+```yaml
+# .github/workflows/pipeline.yml
+schedule:
+  - cron: '0 9 * * *'  # 09:00 UTC / 06:00 BRT, diariamente
+```
 
-- Python 3.11+
-- PostgreSQL rodando localmente ou em nuvem
-- PDF da Tabela Detalhada da CBF salvo na raiz do projeto
+A cada execução:
+1. Pipeline roda completo (extração → transformação → carga → dashboard)
+2. Dashboard atualizado é publicado automaticamente no GitHub Pages
+3. Logs registram contagem de registros processados vs. ignorados
 
-### 1. Clonar o repositório
+Trigger manual disponível via `workflow_dispatch`.
+
+# Secrets necessários
+
+Configure em **Settings → Secrets and variables → Actions**:
+
+| Secret | Valor |
+|---|---|
+| `DB_HOST` | Host do PostgreSQL |
+| `DB_USER` | Usuário |
+| `DB_PASSWORD` | Senha |
+| `DB_NAME` | Nome do banco |
+| `DB_PORT` | Porta (padrão: `5432`) |
+
+---
+
+# Queries analíticas prontas
+
+O arquivo `analytics_queries.sql` inclui 10 queries de uso imediato:
+
+- Classificação completa com aproveitamento
+- Top 10 artilheiros
+- Melhor ataque e melhor defesa da competição
+- Comparativo mandante × visitante
+- Times em sequência positiva (3+ jogos sem perder)
+- Tendência de gols por rodada
+- Histórico de confrontos diretos entre dois times
+- Ranking geral por performance score
+
+---
+
+# Monitoramento
+
+- Logging estruturado em `pipeline.log`
+- Retry automático com **backoff exponencial** em requisições HTTP
+- Verificação de idempotência antes de reprocessar dados já carregados
+- Contagem de registros processados vs. ignorados por execução
+
+---
+
+# Estrutura do projeto
+
+```
+brasileirao-2026-pipeline/
+│
+├── extract_data.py          # Ingestão: scraping CBF + leitura de PDF
+├── clean_data.py            # Limpeza e padronização (NOME_MAP)
+├── transform_data.py        # Feature engineering e métricas derivadas
+├── load_database.py         # Carga no PostgreSQL com upsert
+├── generate_dashboard.py    # Geração do dashboard HTML interativo
+├── scheduler.py             # Orquestrador e agendador do pipeline
+│
+├── create_tables.sql        # DDL das tabelas
+├── analytics_queries.sql    # 10 queries analíticas prontas
+│
+├── dados_brutos/            # Camada Bronze — CSVs brutos (extract)
+├── dados_processados/       # Camada Silver — CSVs limpos (clean + transform)
+│
+├── .github/workflows/
+│   └── pipeline.yml         # CI/CD: execução diária + deploy no Pages
+├── .env.example
+├── requirements.txt
+└── pipeline.log
+```
+
+---
+
+# Como executar localmente
 
 ```bash
+# 1 - Clonar
 git clone https://github.com/MayaraCAlmeida/brasileirao-2026-pipeline.git
 cd brasileirao-2026-pipeline
-```
 
-### 2. Instalar dependências
-
-```bash
+# 2 - Instalar dependências
 pip install -r requirements.txt
-```
 
-### 3. Configurar `.env`
-
-Copie o arquivo de exemplo e preencha com suas credenciais:
-
-```bash
+# 3 - Configurar variáveis de ambiente
 cp .env.example .env
-```
+# edite .env com suas credenciais PostgreSQL
 
-```env
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=brasileirao_pipeline
-DB_USER=postgres
-DB_PASSWORD=sua_senha
-```
-
-### 4. Criar as tabelas no banco
-
-```bash
+# 4 - Criar tabelas
 psql -U postgres -d brasileirao_pipeline -f create_tables.sql
-```
 
-### 5. Executar o Pipeline
+# 5 - Executar
+python scheduler.py --run-now          # pipeline completo agora
+python scheduler.py                    # agendar para 06:00 BRT diariamente
+python scheduler.py --hour 8 --minute 30  # horário customizado
 
-```bash
-# Pipeline completo agora
-python scheduler.py --run-now
-
-# Agendar execução diária (padrão: 06:00 BRT)
-python scheduler.py
-
-# Agendar em horário customizado
-python scheduler.py --hour 8 --minute 30
-
-# Rodar etapas individualmente
+# Etapas individuais
 python extract_data.py
 python clean_data.py
 python transform_data.py
@@ -170,99 +233,21 @@ python generate_dashboard.py
 
 ---
 
-## CI/CD com GitHub Actions
-
-O arquivo `.github/workflows/pipeline.yml` automatiza tudo:
-
-- **Execução diária** às 09:00 UTC (06:00 BRT)
-- **Trigger manual** via `workflow_dispatch`
-- Após o pipeline, o dashboard é publicado automaticamente no **GitHub Pages**
-
-### Configurar os Secrets no Repositório
-
-Vá em **Settings → Secrets and variables → Actions** e adicione:
-
-| Secret | Descrição |
-|---|---|
-| `DB_HOST` | Host do PostgreSQL |
-| `DB_USER` | Usuário do banco |
-| `DB_PASSWORD` | Senha do banco |
-| `DB_NAME` | Nome do banco |
-| `DB_PORT` | Porta (geralmente `5432`) |
-
-Ative o GitHub Pages em **Settings → Pages** apontando para a branch `gh-pages`.
-
----
-
-## Métricas Calculadas
-
-### Performance Score
-
-Índice composto de 0 a 100 por time:
-
-```
-Score = (aproveitamento × 0.5) + (saldo_gols/jogo × 0.3) + (gols_pro/jogo × 0.2)
-```
-
-### Forma Recente
-
-Sequência de resultados (V/E/D) dos últimos 5 jogos, com aproveitamento percentual.
-
-### Análise Casa × Fora
-
-Comparativo de vitórias, gols e aproveitamento jogando em casa versus fora.
-
----
-
-## Queries Analíticas
-
-O arquivo `analytics_queries.sql` contém 10 queries prontas, incluindo:
-
-- Tabela de classificação completa
-- Top 10 artilheiros
-- Melhor ataque e melhor defesa
-- Comparativo casa × fora
-- Times em sequência positiva (3+ jogos sem perder)
-- Tendência de gols por rodada
-- Histórico de confrontos diretos entre dois times
-- Ranking geral de performance
-
----
-
-## Monitoramento e Logs
-
-- Logging estruturado via `pipeline.log`
-- Retry automático com backoff exponencial para requisições
-- Verificação de idempotência antes de reprocessar dados já carregados
-- Contagem de registros processados vs. ignorados em cada execução
-
----
-
-## Tecnologias
+# Stack
 
 | Tecnologia | Uso |
 |---|---|
-| `requests` + `beautifulsoup4` | Scraping do site da CBF |
-| `pdfplumber` | Extração de dados do PDF oficial |
-| `pandas` + `numpy` | Processamento e transformação dos dados |
-| `sqlalchemy` + `psycopg2` | ORM e conexão com PostgreSQL |
-| `apscheduler` | Agendamento do pipeline |
-| `Chart.js` | Gráficos no dashboard HTML |
-| GitHub Actions | CI/CD e execução automática |
+| `requests` + `beautifulsoup4` | Web scraping (CBF) |
+| `pdfplumber` | Extração estruturada de PDF oficial |
+| `pandas` + `numpy` | Processamento, transformação e feature engineering |
+| `sqlalchemy` + `psycopg2` | ORM e conexão PostgreSQL |
+| `apscheduler` | Orquestração e agendamento local |
+| `Chart.js` | Visualizações interativas no dashboard |
+| GitHub Actions | CI/CD — execução automática e deploy |
 | GitHub Pages | Hospedagem do dashboard |
 
 ---
 
-## Observações
+> - Dados extraídos do site oficial da CBF. Projeto independente, sem vínculo com a Confederação Brasileira de Futebol.
 
-- A CBF pode demorar algumas horas para atualizar o site após os jogos. O pipeline roda diariamente de manhã, garantindo que os dados do dia anterior estejam disponíveis.
-
----
-
-*Dados extraídos do site oficial da CBF. Este projeto não tem vínculo com a Confederação Brasileira de Futebol.*
-
----
-
-## Responsável Técnica
-
-Desenvolvido por: **Mayara C. Almeida** 
+**Desenvolvido por [Mayara C. Almeida](https://github.com/MayaraCAlmeida)**
