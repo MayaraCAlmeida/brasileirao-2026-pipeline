@@ -1,0 +1,28 @@
+name: 'dbt_brasileirao'
+version: '1.0.0'
+config-version: 2
+
+profile: 'dbt_brasileirao'
+
+model-paths: ["models"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  dbt_brasileirao:
+    staging:
+      +materialized: view        # Staging como views (por ser leve, sem custo de storage)
+      +schema: staging
+    intermediate:
+      +materialized: view
+      +schema: intermediate
+    marts:
+      +materialized: table       # Marts como tables (considero performático para consulta)
+      +schema: marts
