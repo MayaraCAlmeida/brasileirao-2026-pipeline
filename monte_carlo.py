@@ -1,5 +1,6 @@
 # Probabilidades do Brasileirão 2026 via simulação de Monte Carlo
 
+
 import os
 import logging
 import numpy as np
