@@ -29,3 +29,4 @@ Thumbs.db
 #TXT
 passos_br.txt
 pipeline.txt
+dbt_brasileirao/target/
