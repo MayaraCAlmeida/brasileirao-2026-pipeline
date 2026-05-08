@@ -6,6 +6,17 @@
 
 ---
 
+## Versões do Projeto
+
+| Versão | Branch | Stack |
+|---|---|---|
+| **V1 — Pipeline funcional** | `main` | Python · PostgreSQL · GitHub Actions |
+| **V2 — Arquitetura de produção** | `feat/airflow-dbt-spark` | + Airflow · dbt · PySpark |
+
+A V2 não substitui a V1 — ela evolui em cima dela, introduzindo orquestração, modelagem de dados e processamento distribuído para simular um pipeline em larga escala.
+
+[Ver branch V2](https://github.com/MayaraCAlmeida/brasileirao-2026-pipeline/tree/feat/airflow-dbt-spark)
+
 # O que este projeto faz
 
 Coleta dados em tempo real do Campeonato Brasileiro Série A 2026 diretamente das fontes oficiais da CBF (web scraping + PDF oficial), processa e enriquece com métricas derivadas, persiste em PostgreSQL com garantia de idempotência, e publica um dashboard HTML interativo atualizado automaticamente via GitHub Actions.
