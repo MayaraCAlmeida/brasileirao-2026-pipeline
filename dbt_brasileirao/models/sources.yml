@@ -1,0 +1,10 @@
+version: 2
+
+sources:
+  - name: brasileirao_raw
+    schema: public
+    tables:
+      - name: tabela
+      - name: artilharia
+      - name: team_stats
+      - name: partidas
