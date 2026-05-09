@@ -21,7 +21,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 RAW_DIR = os.path.join(BASE_DIR, "dados_brutos")
 os.makedirs(RAW_DIR, exist_ok=True)
 
-# -- caminho do PDF da CBF 
+# -- caminho do PDF da CBF
 PDF_PATH = os.path.join(BASE_DIR, "Tabela_Detalhada_BSA_2026.pdf")
 # --
 
@@ -61,9 +61,9 @@ def save_raw(df, name):
     return path
 
 
-
 # TABELA DE CLASSIFICAÇÃO (CBF scraping)
 # --------------------------------------------------------
+
 
 def extract_tabela():
     log.info("► Tabela de classificação (CBF)...")
@@ -123,7 +123,6 @@ def extract_tabela():
     return df
 
 
-
 # ARTILHARIA (CBF scraping)
 # --------------------------------------------------------
 def extract_artilharia():
@@ -176,10 +175,10 @@ def extract_artilharia():
             )
 
     df = pd.DataFrame(rows).drop_duplicates(subset=["posicao", "jogador"])
+    df = df[["posicao", "jogador", "gols", "clube"]]  # garante só as 4 colunas certas
     df = df.sort_values("posicao").reset_index(drop=True)
     save_raw(df, "artilharia")
     return df
-
 
 
 # PARTIDAS (PDF oficial da CBF)
@@ -261,26 +260,9 @@ def extract_partidas():
     return df
 
 
-
 # PLACARES VIA PLAYWRIGHT (CBF — complementa o PDF)
-# O site da CBF renderiza os jogos via JavaScript, então requests
-# + BeautifulSoup só vê HTML estático sem placares. O Playwright
-# abre um browser headless real, espera o JS carregar e extrai
-# o HTML completo com todos os resultados.
-#
-# Estratégia de extração (em cascata):
-#   1. data-jogo attribute nos blocos de jogo
-#   2. Links /jogos/campeonato-brasileiro/REF
-#   3. Match por nome de time no texto renderizado
-# ----------------------------------------------------------
+# --------------------------------------------------------
 def scrape_placares_cbf(df_partidas: pd.DataFrame) -> pd.DataFrame:
-    """
-    Recebe o DataFrame completo de partidas (vindo do PDF) e tenta
-    atualizar gols_mandante / gols_visitante com os resultados já
-    publicados no site da CBF, usando Playwright para renderizar o JS.
-
-    Retorna o DataFrame com os placares preenchidos onde disponíveis.
-    """
     log.info("► Buscando placares no site da CBF (Playwright)...")
 
     df = df_partidas.copy()
@@ -303,7 +285,6 @@ def scrape_placares_cbf(df_partidas: pd.DataFrame) -> pd.DataFrame:
             log.info(f"  → Abrindo {CBF_URL} ...")
             page.goto(CBF_URL, wait_until="networkidle", timeout=60000)
 
-            # Espera a tabela de classificação aparecer (confirma que JS rodou)
             try:
                 page.wait_for_selector("table", timeout=15000)
             except Exception:
@@ -314,7 +295,7 @@ def scrape_placares_cbf(df_partidas: pd.DataFrame) -> pd.DataFrame:
 
         soup = BeautifulSoup(html, "html.parser")
 
-        # Tentativa 1: data-jogo 
+        # Tentativa 1: data-jogo
         jogos_html = soup.find_all(attrs={"data-jogo": True})
         if jogos_html:
             for bloco in jogos_html:
@@ -331,7 +312,7 @@ def scrape_placares_cbf(df_partidas: pd.DataFrame) -> pd.DataFrame:
                     placares_encontrados += int(mask.sum())
             log.info(f"  → data-jogo: {placares_encontrados} placares")
 
-        # Tentativa 2: links /jogos/campeonato-brasileiro/REF 
+        # Tentativa 2: links /jogos/campeonato-brasileiro/REF
         if placares_encontrados == 0:
             for a in soup.find_all(
                 "a", href=re.compile(r"/jogos/campeonato-brasileiro/(\d+)")
@@ -353,7 +334,7 @@ def scrape_placares_cbf(df_partidas: pd.DataFrame) -> pd.DataFrame:
                     placares_encontrados += int(mask.sum())
             log.info(f"  → links: {placares_encontrados} placares")
 
-        # Tentativa 3: match por nome de time no texto 
+        # Tentativa 3: match por nome de time no texto
         if placares_encontrados == 0:
             texto_pagina = soup.get_text(" ")
             for _, row in df[df["gols_mandante"].isna()].iterrows():
@@ -383,9 +364,8 @@ def scrape_placares_cbf(df_partidas: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-
 # MAIN
-
+# --------------------------------------------------------
 def run():
     log.info("=" * 60)
     log.info("  Brasileirão 2026 Pipeline — Extração")
@@ -394,7 +374,6 @@ def run():
 
     results = {}
 
-    # Etapas independentes de scraping
     for name, func in [
         ("tabela", extract_tabela),
         ("artilharia", extract_artilharia),
@@ -404,11 +383,9 @@ def run():
         except Exception as e:
             log.error(f"  ✘ Erro em '{name}': {e}")
 
-    # Partidas: PDF + complemento de placares via scraping
     try:
         df_partidas = extract_partidas()
 
-        # Tenta enriquecer com placares do site (falha silenciosa: mantém o PDF)
         try:
             df_partidas = scrape_placares_cbf(df_partidas)
         except Exception as e:
