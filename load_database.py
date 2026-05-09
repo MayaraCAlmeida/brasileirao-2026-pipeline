@@ -79,7 +79,6 @@ def fix_row(row: dict) -> dict:
         elif k in STR_COLS:
             out[k] = str(v) if not (isinstance(v, float) and v != v) else None
         else:
-            # Tenta preservar o tipo, mas converte numpy para Python
             try:
                 out[k] = v.item()  # np.generic → Python nativo
             except AttributeError:
@@ -107,12 +106,11 @@ def run_sql_file(engine, path: str):
         return False
     with open(path, encoding="utf-8") as f:
         sql = f.read()
-    with engine.connect() as conn:
+    with engine.begin() as conn:
         for stmt in sql.split(";"):
             s = stmt.strip()
             if s:
                 conn.execute(text(s))
-        conn.commit()
     log.info(f"  ✔ SQL executado: {os.path.basename(path)}")
     return True
 
@@ -133,9 +131,8 @@ def upsert_table(
     table = Table(table_name, metadata, autoload_with=engine)
     total = len(df)
 
-    with engine.connect() as conn:
+    with engine.begin() as conn:
         for i in range(0, total, chunk_size):
-            # Converte cada linha para tipos Python nativos via fix_row
             chunk = [
                 fix_row(r)
                 for r in df.iloc[i : i + chunk_size].to_dict(orient="records")
@@ -146,7 +143,6 @@ def upsert_table(
                 set_={c.key: c for c in stmt.excluded if c.key not in conflict_cols},
             )
             conn.execute(stmt)
-        conn.commit()
     log.info(f"  ✔ {table_name}  ({total} linhas)")
 
 
