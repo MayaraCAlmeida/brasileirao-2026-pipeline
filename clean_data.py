@@ -163,6 +163,9 @@ def run():
 
     try:
         df_art = pd.read_csv(latest_file("artilharia"))
+        df_art = df_art.loc[
+            :, ~df_art.columns.str.strip().eq("")
+        ]  # remover as colunas vazias
         results["artilharia"] = clean_artilharia(df_art)
         save_processed(results["artilharia"], "artilharia")
     except Exception as e:
