@@ -1,4 +1,4 @@
-# Brasileirão Série A 2026 — Data Pipeline
+# Brasileirão Série A 2026 - Data Pipeline
 
 Pipeline automatizado de coleta, processamento e visualização de dados do Campeonato Brasileiro Série A 2026. Extrai dados em tempo real da CBF via web scraping e PDF oficial, processa e carrega em banco PostgreSQL, e gera um dashboard HTML interativo com classificação, artilharia, estatísticas por time e resultados.
 
@@ -6,7 +6,7 @@ Pipeline automatizado de coleta, processamento e visualização de dados do Camp
 
 # Dashboard
 
-O dashboard é gerado automaticamente e publicado via **GitHub Pages** a cada execução do pipeline — atualizado todo dia às 06:00 BRT.
+O dashboard é gerado automaticamente e publicado via **GitHub Pages** a cada execução do pipeline, atualizado todo dia às 06:00 BRT.
 
 **[Dashboard](https://mayaracalmeida.github.io/brasileirao-2026-pipeline)**
 
@@ -70,7 +70,7 @@ PDF Oficial  ──pdfplumber──►      │
 
 ---
 
-## Tabelas no Banco de Dados
+# Tabelas no Banco de Dados
 
 | Tabela | Descrição |
 |---|---|
@@ -223,8 +223,8 @@ O arquivo `analytics_queries.sql` contém 10 queries prontas, incluindo:
 
 # Versões
 
-- **V1 (main):** Pipeline em Python puro com agendamento via GitHub Actions — [branch atual](https://github.com/MayaraCAlmeida/brasileirao-2026-pipeline)
-- **V2 (em desenvolvimento):** Arquitetura de produção com orquestração via Apache Airflow, transformações modeladas com dbt e processamento distribuído com PySpark — [branch feat/airflow-dbt-spark](https://github.com/MayaraCAlmeida/brasileirao-2026-pipeline/tree/feat/airflow-dbt-spark)
+- **V1 (main):** Pipeline em Python puro com agendamento via GitHub Actions - [branch atual](https://github.com/MayaraCAlmeida/brasileirao-2026-pipeline)
+- **V2 (feat/airflow-dbt-spark):** Arquitetura de produção com orquestração via Apache Airflow, transformações modeladas com dbt e processamento distribuído com PySpark - [branch feat/airflow-dbt-spark](https://github.com/MayaraCAlmeida/brasileirao-2026-pipeline/tree/feat/airflow-dbt-spark)
 
 ---
 
