@@ -2,6 +2,8 @@ version: '3.8'
 
 x-airflow-common: &airflow-common
   build: .
+  networks:
+    - airflow-net
   environment:
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
@@ -26,6 +28,8 @@ x-airflow-common: &airflow-common
 services:
   postgres:
     image: postgres:15
+    networks:
+      - airflow-net
     environment:
       POSTGRES_USER: airflow
       POSTGRES_PASSWORD: airflow
@@ -35,7 +39,8 @@ services:
       interval: 5s
       retries: 5
     ports:
-      - "5433:5432"
+      - "5434:5432"
+    restart: always
 
   airflow-webserver:
     <<: *airflow-common
@@ -56,13 +61,9 @@ services:
 
   airflow-init:
     <<: *airflow-common
-    command: >
-      bash -c "airflow db init &&
-               airflow users create
-               --username admin
-               --password admin
-               --firstname Admin
-               --lastname User
-               --role Admin
-               --email mayalmeida222@gmail.com"
+    command: bash -c "airflow db init && airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email mayalmeida222@gmail.com"
     restart: "no"
+
+networks:
+  airflow-net:
+    driver: bridge
