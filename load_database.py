@@ -1,10 +1,12 @@
 # Carga no PostgreSQL com upsert
 
 import os
+import time
 import logging
 import pandas as pd
 from sqlalchemy import create_engine, text, MetaData, Table, inspect
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import OperationalError
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -100,17 +102,35 @@ def get_engine():
     return create_engine(url, pool_pre_ping=True)
 
 
+def execute_with_retry(engine, statement: str, max_attempts: int = 3):
+    """Executa um statement SQL com retry em caso de deadlock."""
+    for attempt in range(max_attempts):
+        try:
+            with engine.begin() as conn:
+                conn.execute(text(statement))
+            return
+        except OperationalError as e:
+            if "deadlock" in str(e).lower() and attempt < max_attempts - 1:
+                wait = 2**attempt  # 1s, 2s, 4s...
+                log.warning(
+                    f"  ⚠ Deadlock detectado, tentativa {attempt + 1}/{max_attempts}. Aguardando {wait}s..."
+                )
+                time.sleep(wait)
+            else:
+                raise
+
+
 def run_sql_file(engine, path: str):
+    """Executa cada statement do arquivo SQL separadamente, com retry em deadlock."""
     if not os.path.exists(path):
         log.warning(f"  SQL não encontrado: {path}")
         return False
     with open(path, encoding="utf-8") as f:
         sql = f.read()
-    with engine.begin() as conn:
-        for stmt in sql.split(";"):
-            s = stmt.strip()
-            if s:
-                conn.execute(text(s))
+    for stmt in sql.split(";"):
+        s = stmt.strip()
+        if s:
+            execute_with_retry(engine, s)
     log.info(f"  ✔ SQL executado: {os.path.basename(path)}")
     return True
 
