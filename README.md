@@ -57,24 +57,22 @@ O pipeline é orquestrado por um DAG com 5 tasks em sequência, agendado diariam
 extract → clean → transform → load → dashboard
 ```
 
-**Como rodar:**
+# Como rodar
 
+# Airflow
 ```bash
-cd airflow/
-cp .env.example .env       # preencha com suas credenciais
 docker compose up -d
 ```
+Acesse em [http://localhost:8080](http://localhost:8080)
 
-Acesse a interface em **http://localhost:8080** — usuário e senha: `airflow`.
-
-Ative o DAG `brasileirao_pipeline` e clique em **Trigger DAG** para rodar manualmente.
-
+# dbt docs (Lineage Graph)
 ```bash
-docker compose down        # para encerrar
+cd dbt_brasileirao
+dbt docs serve --port 8082
 ```
+Ou dê duplo clique em `start_dbt_docs.bat` na raiz do projeto.
 
-![Airflow Graph](docs/airflow-graph.png)
-
+Acesse em [http://localhost:8082](http://localhost:8082)
 ---
 
 # Transformações com dbt Core
