@@ -1,4 +1,4 @@
-# Brasileirão Série A 2026 — Pipeline V2: Arquitetura de Produção
+# Brasileirão Série A 2026 - Pipeline V2: Arquitetura de Produção
 
 Essa branch é a evolução do [pipeline original (V1)](https://github.com/MayaraCAlmeida/brasileirao-2026-pipeline/tree/main), construído com Python puro e agendamento via GitHub Actions.
 
@@ -59,13 +59,13 @@ extract → clean → transform → load → dashboard
 
 # Como rodar
 
-# Airflow
+### Airflow
 ```bash
 docker compose up -d
 ```
 Acesse em [http://localhost:8080](http://localhost:8080)
 
-# dbt docs (Lineage Graph)
+### dbt docs (Lineage Graph)
 ```bash
 cd dbt_brasileirao
 dbt docs serve --port 8082
@@ -99,7 +99,7 @@ dbt docs serve --profiles-dir . --port 8082
 
 Acesse o lineage graph em **http://localhost:8082**.
 
-![dbt Lineage Graph](docs/dbt-lineage.png)
+![dbt Lineage Graph](docsdbt-lineage.png.png)
 
 ---
 
