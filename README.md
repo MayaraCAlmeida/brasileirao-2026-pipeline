@@ -1,4 +1,4 @@
-# Brasileirão Série A 2026 — Pipeline V2: Arquitetura de Produção
+# Brasileirão Série A 2026 - Pipeline V2: Arquitetura de Produção
 
 Essa branch é a evolução do [pipeline original (V1)](https://github.com/MayaraCAlmeida/brasileirao-2026-pipeline/tree/main), construído com Python puro e agendamento via GitHub Actions.
 
