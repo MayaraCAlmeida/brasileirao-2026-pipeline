@@ -1,4 +1,4 @@
-# Brasileirão Série A 2026 - Pipeline V2: Arquitetura de Produção
+# Brasileirão Série A 2026 — Pipeline V2: Arquitetura de Produção
 
 Essa branch é a evolução do [pipeline original (V1)](https://github.com/MayaraCAlmeida/brasileirao-2026-pipeline/tree/main), construído com Python puro e agendamento via GitHub Actions.
 
@@ -57,7 +57,9 @@ O pipeline é orquestrado por um DAG com 5 tasks em sequência, agendado diariam
 extract → clean → transform → load → dashboard
 ```
 
-# Como rodar
+![Airflow Graph](docsairflow-graph.png)
+
+## Como rodar
 
 ### Airflow
 ```bash
@@ -73,6 +75,7 @@ dbt docs serve --port 8082
 Ou dê duplo clique em `start_dbt_docs.bat` na raiz do projeto.
 
 Acesse em [http://localhost:8082](http://localhost:8082)
+
 ---
 
 # Transformações com dbt Core
@@ -84,6 +87,8 @@ A limpeza e padronização dos dados foi modelada em 3 camadas com dbt Core, tra
 | staging | `stg_classificacao` · `stg_artilharia` | Limpeza e tipagem dos dados brutos |
 | intermediate | `int_team_stats` | Agrega métricas por time e calcula performance score em SQL |
 | marts | `mart_brasileirao` | Visão analítica final com zona da tabela e artilheiro destaque |
+
+![dbt Lineage Graph](docsdbt-lineage.png)
 
 **Como rodar:**
 
@@ -99,8 +104,6 @@ dbt docs serve --profiles-dir . --port 8082
 
 Acesse o lineage graph em **http://localhost:8082**.
 
-![dbt Lineage Graph](docsdbt-lineage.png.png)
-
 ---
 
 # Processamento distribuído com PySpark
@@ -112,6 +115,8 @@ A etapa de feature engineering foi reescrita com PySpark, rodando localmente em 
 - Performance score por time (aproveitamento, saldo e ofensividade)
 - Classificação por zona da tabela (Libertadores, Sul-Americana, Meio, Rebaixamento)
 - Ranking de artilheiros com Window Functions (`rank()`)
+
+![Spark Output](docsspark-output.png)
 
 **Como rodar:**
 
@@ -129,8 +134,6 @@ No Linux/Mac:
 pip install pyspark==3.5.1
 python spark/transform_spark.py
 ```
-
-![Spark Output](docs/spark-output.png)
 
 ---
 
