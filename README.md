@@ -1,145 +1,110 @@
-# Brasileirão Série A 2026 - Pipeline V2: Arquitetura de Produção
+# Brasileirão Série A 2026 - Data Pipeline
 
-Essa branch é a evolução do [pipeline original (V1)](https://github.com/MayaraCAlmeida/brasileirao-2026-pipeline/tree/main), construído com Python puro e agendamento via GitHub Actions.
-
-A V2 mantém toda a lógica da V1 e adiciona orquestração com Airflow, transformações modeladas com dbt e processamento distribuído com PySpark, simulando um pipeline de dados em ambiente de produção real.
+Pipeline automatizado de coleta, processamento e visualização de dados do Campeonato Brasileiro Série A 2026. Extrai dados em tempo real da CBF via web scraping e PDF oficial, processa e carrega em banco PostgreSQL, e gera um dashboard HTML interativo com classificação, artilharia, estatísticas por time e resultados.
 
 ---
 
-# O que mudou em relação à V1
+# Dashboard
 
-| Camada | V1 | V2 |
-|---|---|---|
-| Orquestração | GitHub Actions | Apache Airflow (Docker) |
-| Transformações | Python puro | dbt Core (SQL + Jinja) |
-| Processamento | pandas | pandas + PySpark |
-| Documentação | README | README + dbt docs + lineage graph |
+O dashboard é gerado automaticamente como `brasileirao_dashboard.html` e publicado via **GitHub Pages** a cada execução do pipeline.
+
+**[Ver dashboard ao vivo](https://mayaracalmeida.github.io/brasileirao-2026-pipeline)**
 
 ---
 
-# Estrutura da V2
+## Estrutura do Projeto
 
 ```
 brasileirao-2026-pipeline/
 │
-├── airflow/                        # Orquestração com Apache Airflow
-│   ├── docker-compose.yml          # Ambiente completo via Docker
-│   ├── Dockerfile
-│   └── dags/
-│       └── brasileirao_dag.py      # DAG principal do pipeline
+├── extract_data.py          # Extração: scraping CBF + leitura do PDF
+├── clean_data.py            # Limpeza e padronização dos dados brutos
+├── transform_data.py        # Feature engineering e métricas derivadas
+├── load_database.py         # Carga no PostgreSQL com upsert
+├── generate_dashboard.py    # Geração do dashboard HTML
+├── scheduler.py             # Orquestrador e agendador do pipeline
 │
-├── dbt_brasileirao/                # Transformações modeladas com dbt Core
-│   ├── dbt_project.yml
-│   ├── profiles.yml
-│   └── models/
-│       ├── staging/                # stg_classificacao · stg_artilharia
-│       ├── intermediate/           # int_team_stats
-│       └── marts/                  # mart_brasileirao
+├── create_tables.sql        # DDL das tabelas do banco
+├── analytics_queries.sql    # Queries analíticas prontas para uso
 │
-├── spark/                          # Processamento distribuído com PySpark
-│   └── transform_spark.py
+├── Tabela_Detalhada_BSA_2026.pdf  # Tabela oficial da CBF (fonte das partidas)
+├── brasileirao_dashboard.html     # Dashboard gerado (atualizado a cada run)
 │
-├── docs/                           # Prints das ferramentas em execução
-│   ├── airflow-graph.png
-│   ├── dbt-lineage.png
-│   └── spark-output.png
+├── dados_brutos/            # CSVs brutos (gerados pelo extract_data.py)
+├── dados_processados/       # CSVs limpos (gerados pelo clean_data.py)
 │
-└── [demais arquivos da V1]
+├── .github/workflows/pipeline.yml  # CI/CD: execução diária + deploy no Pages
+├── .env.example             # Exemplo de variáveis de ambiente
+├── requirements.txt         # Dependências Python
+└── pipeline.log             # Log de execuções
 ```
 
 ---
 
-# Orquestração com Apache Airflow
-
-O pipeline é orquestrado por um DAG com 5 tasks em sequência, agendado diariamente às 06:00 BRT com retry automático e backoff exponencial.
+# Arquitetura do Pipeline
 
 ```
-extract → clean → transform → load → dashboard
+CBF Website  ──scraping──►  extract_data.py
+PDF Oficial  ──pdfplumber──►      │
+                                  ▼
+                           clean_data.py
+                           (limpeza + NOME_MAP)
+                                  │
+                                  ▼
+                         transform_data.py
+                     (team_stats, forma_recente,
+                      gols_por_rodada, performance_score)
+                                  │
+                          ┌───────┴────────┐
+                          ▼                ▼
+                   load_database.py   generate_dashboard.py
+                   (PostgreSQL upsert)  (HTML interativo)
+                                             │
+                                             ▼
+                                      GitHub Pages
 ```
 
-![Airflow Graph](docs/airflow-graph.png)
-
-# Como rodar
-
-## Airflow
-```bash
-docker compose up -d
-```
-Acesse em [http://localhost:8080](http://localhost:8080)
-
-## dbt docs (Lineage Graph)
-```bash
-cd dbt_brasileirao
-dbt docs serve --port 8082
-```
-Ou dê duplo clique em `start_dbt_docs.bat` na raiz do projeto.
-
-Acesse em [http://localhost:8082](http://localhost:8082)
+**Fontes de dados:**
+- **Tabela de classificação** e **artilharia** — scraping do site `cbf.com.br`
+- **Partidas** (placares, datas, estádios) — leitura do PDF oficial da CBF via `pdfplumber`
 
 ---
 
-# Transformações com dbt Core
+# Tabelas no Banco de Dados
 
-A limpeza e padronização dos dados foi modelada em 3 camadas com dbt Core, trazendo testes automáticos e documentação gerada.
+| Tabela | Descrição |
+|---|---|
+| `tabela` | Classificação oficial (posição, pontos, V/E/D, gols, aproveitamento) |
+| `partidas` | Todos os jogos (incluindo futuros, sem placar) |
+| `partidas_finalizadas` | Jogos encerrados com placar e resultado calculado |
+| `team_stats` | Stats agregadas por time: casa/fora, médias, performance score |
+| `forma_recente` | Forma dos últimos 5 jogos por time |
+| `artilharia` | Ranking de artilheiros |
+| `gols_por_rodada` | Tendência de gols por rodada |
 
-| Camada | Model | O que faz |
-|---|---|---|
-| staging | `stg_classificacao` · `stg_artilharia` | Limpeza e tipagem dos dados brutos |
-| intermediate | `int_team_stats` | Agrega métricas por time e calcula performance score em SQL |
-| marts | `mart_brasileirao` | Visão analítica final com zona da tabela e artilheiro destaque |
-
-**Como rodar:**
-
-```bash
-pip install dbt-postgres
-cd dbt_brasileirao/
-
-dbt run --profiles-dir .        # roda todos os models
-dbt test --profiles-dir .       # executa os testes de qualidade
-dbt docs generate --profiles-dir .
-dbt docs serve --profiles-dir . --port 8082
-```
-
-Acesse o lineage graph em **http://localhost:8082**.
-
-![dbt Lineage Graph](docs/dbt-lineage.png)
+O `load_database.py` usa **upsert** (`ON CONFLICT DO UPDATE`) em todas as tabelas, então re-execuções são seguras — sem risco de duplicação.
 
 ---
 
-# Processamento distribuído com PySpark
+# Como Executar
 
-A etapa de feature engineering foi reescrita com PySpark, rodando localmente em modo `local[*]` e pronta para escalar para EMR ou Databricks sem refatoração.
+## Pré-requisitos
 
-**Transformações realizadas:**
-- Cálculo de saldo de gols, média de gols pró e contra por jogo
-- Performance score por time (aproveitamento, saldo e ofensividade)
-- Classificação por zona da tabela (Libertadores, Sul-Americana, Meio, Rebaixamento)
-- Ranking de artilheiros com Window Functions (`rank()`)
+- Python 3.11+
+- PostgreSQL rodando localmente ou em nuvem
+- PDF da Tabela Detalhada da CBF salvo na raiz do projeto
 
-**Como rodar:**
-
-No Windows, instale o PySpark em um diretório sem caracteres especiais e rode via PowerShell:
-
-```powershell
-pip install pyspark==3.5.1 --target C:\pyspark_clean
-$env:PYTHONPATH = "C:\pyspark_clean"
-python spark/transform_spark.py
-```
-
-No Linux/Mac:
+### Instalação
 
 ```bash
-pip install pyspark==3.5.1
-python spark/transform_spark.py
+git clone https://github.com/MayaraCAlmeida/brasileirao-2026-pipeline.git
+cd brasileirao-2026-pipeline
+pip install -r requirements.txt
 ```
 
-![Spark Output](docs/spark-output.png)
+### Configuração
 
----
-
-# Variáveis de ambiente
-
-Copie o `.env.example` e preencha com suas credenciais:
+Copie o arquivo de exemplo e preencha com suas credenciais:
 
 ```bash
 cp .env.example .env
@@ -153,30 +118,121 @@ DB_USER=postgres
 DB_PASSWORD=sua_senha
 ```
 
----
+Crie as tabelas no banco:
 
-# Arquitetura alvo
-
-```
-CBF Website → Scraping → [ Kafka ] → Spark Streaming → PostgreSQL / S3
-PDF Oficial → pdfplumber                                      |
-                                                              v
-                                                   dbt Transformations
-                                                   (staging → marts)
-                                                              |
-                                                              v
-                                                        Airflow DAGs
-                                                              |
-                                                              v
-                                                     Dashboard / BI Tool
+```bash
+psql -U postgres -d brasileirao_pipeline -f create_tables.sql
 ```
 
-Kafka está posicionado para ingestão em tempo real, útil quando o pipeline evoluir para placares ao vivo.
+# Execução
 
-AWS (roadmap): PostgreSQL local > RDS · CSVs > S3 · Airflow local > MWAA.
+**Rodar o pipeline completo agora:**
+
+```bash
+python scheduler.py --run-now
+```
+
+**Agendar execução diária (padrão: 06:00 BRT):**
+
+```bash
+python scheduler.py
+```
+
+**Agendar em horário customizado:**
+
+```bash
+python scheduler.py --hour 8 --minute 30
+```
+
+**Rodar etapas individualmente:**
+
+```bash
+python extract_data.py
+python clean_data.py
+python transform_data.py
+python load_database.py
+python generate_dashboard.py
+```
 
 ---
 
-*Dados extraídos do site oficial da CBF. Projeto independente, sem vínculo com a Confederação Brasileira de Futebol.*
+# CI/CD com GitHub Actions
 
-**Desenvolvido por [Mayara C. Almeida](https://github.com/MayaraCAlmeida)**
+O arquivo `.github/workflows/pipeline.yml` automatiza tudo:
+
+- **Execução diária** às 09:00 UTC (06:00 BRT)
+- **Trigger manual** via `workflow_dispatch`
+- Após o pipeline, o dashboard é publicado automaticamente no **GitHub Pages**
+
+# Configurar os secrets no repositório
+
+Vá em **Settings → Secrets and variables → Actions** e adicione:
+
+| Secret | Descrição |
+|---|---|
+| `DB_HOST` | Host do PostgreSQL |
+| `DB_USER` | Usuário do banco |
+| `DB_PASSWORD` | Senha do banco |
+| `DB_NAME` | Nome do banco |
+| `DB_PORT` | Porta (geralmente `5432`) |
+
+Ative o GitHub Pages em **Settings → Pages** apontando para a branch `gh-pages`.
+
+---
+
+# Métricas Calculadas
+
+### Performance Score
+Índice composto de 0 a 100 por time:
+```
+Score = (aproveitamento × 0.5) + (saldo_gols/jogo × 0.3) + (gols_pro/jogo × 0.2)
+```
+
+### Forma Recente
+Sequência de resultados (V/E/D) dos últimos 5 jogos, com aproveitamento percentual.
+
+### Análise Casa × Fora
+Comparativo de vitórias, gols e aproveitamento jogando em casa versus fora.
+
+---
+
+# Queries Analíticas
+
+O arquivo `analytics_queries.sql` contém 10 queries prontas, incluindo:
+
+- Tabela de classificação completa
+- Top 10 artilheiros
+- Melhor ataque e melhor defesa
+- Comparativo casa × fora
+- Times em sequência positiva (3+ jogos sem perder)
+- Tendência de gols por rodada
+- Histórico de confrontos diretos entre dois times
+- Ranking geral de performance
+
+---
+
+# Tecnologias
+
+| Tecnologia | Uso |
+|---|---|
+| `requests` + `beautifulsoup4` | Scraping do site da CBF |
+| `pdfplumber` | Extração de dados do PDF oficial |
+| `pandas` + `numpy` | Processamento e transformação dos dados |
+| `sqlalchemy` + `psycopg2` | ORM e conexão com PostgreSQL |
+| `apscheduler` | Agendamento do pipeline |
+| `Chart.js` | Gráficos no dashboard HTML |
+| GitHub Actions | CI/CD e execução automática |
+| GitHub Pages | Hospedagem do dashboard |
+
+---
+
+# Observações
+
+- A CBF pode demorar algumas horas para atualizar o site após os jogos. O pipeline roda diariamente de manhã, garantindo que os dados do dia anterior estejam disponíveis.
+- O PDF da Tabela Detalhada deve ser atualizado manualmente quando a CBF publicar uma nova versão (normalmente após alterações de datas ou locais).
+- Todos os estádios listados estão sujeitos a alterações pela CBF. Consulte sempre a Tabela Detalhada oficial para informações definitivas.
+
+
+---
+
+*Dados extraídos do site oficial da CBF. Este projeto não tem vínculo com a Confederação Brasileira de Futebol.*
