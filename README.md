@@ -102,7 +102,7 @@ dbt docs serve --profiles-dir . --port 8082
 
 Acesse o lineage graph em **http://localhost:8082**.
 
-![dbt Lineage Graph](docsdbt-lineage.png.png)
+![dbt Lineage Graph](docs/dbt-lineage.png)
 
 ---
 
