@@ -57,17 +57,17 @@ O pipeline é orquestrado por um DAG com 5 tasks em sequência, agendado diariam
 extract → clean → transform → load → dashboard
 ```
 
-![Airflow Graph](docsairflow-graph.png)
+![Airflow Graph](docs/airflow-graph.png)
 
-## Como rodar
+# Como rodar
 
-### Airflow
+## Airflow
 ```bash
 docker compose up -d
 ```
 Acesse em [http://localhost:8080](http://localhost:8080)
 
-### dbt docs (Lineage Graph)
+## dbt docs (Lineage Graph)
 ```bash
 cd dbt_brasileirao
 dbt docs serve --port 8082
@@ -88,8 +88,6 @@ A limpeza e padronização dos dados foi modelada em 3 camadas com dbt Core, tra
 | intermediate | `int_team_stats` | Agrega métricas por time e calcula performance score em SQL |
 | marts | `mart_brasileirao` | Visão analítica final com zona da tabela e artilheiro destaque |
 
-![dbt Lineage Graph](docsdbt-lineage.png)
-
 **Como rodar:**
 
 ```bash
@@ -104,6 +102,8 @@ dbt docs serve --profiles-dir . --port 8082
 
 Acesse o lineage graph em **http://localhost:8082**.
 
+![dbt Lineage Graph](docsdbt-lineage.png.png)
+
 ---
 
 # Processamento distribuído com PySpark
@@ -115,8 +115,6 @@ A etapa de feature engineering foi reescrita com PySpark, rodando localmente em 
 - Performance score por time (aproveitamento, saldo e ofensividade)
 - Classificação por zona da tabela (Libertadores, Sul-Americana, Meio, Rebaixamento)
 - Ranking de artilheiros com Window Functions (`rank()`)
-
-![Spark Output](docsspark-output.png)
 
 **Como rodar:**
 
@@ -134,6 +132,8 @@ No Linux/Mac:
 pip install pyspark==3.5.1
 python spark/transform_spark.py
 ```
+
+![Spark Output](docs/spark-output.png)
 
 ---
 
