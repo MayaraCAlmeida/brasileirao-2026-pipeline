@@ -11,15 +11,11 @@ import os
 import re
 import time
 import logging
-import urllib3
 import requests
 import pdfplumber
 import pandas as pd
 from datetime import datetime
 from bs4 import BeautifulSoup
-
-# Suprime warnings de SSL (necessário pois o site da CBF tem problemas de certificado)
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 RAW_DIR = os.path.join(BASE_DIR, "dados_brutos")
@@ -50,18 +46,11 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 
-def get_soup(url, max_attempts=3):
-    for attempt in range(max_attempts):
-        try:
-            r = requests.get(url, headers=HEADERS, timeout=20, verify=False)
-            r.raise_for_status()
-            time.sleep(1)
-            return BeautifulSoup(r.text, "html.parser")
-        except Exception as e:
-            wait = 2 ** (attempt + 1)  # 2s, 4s, 8s
-            log.warning(f"Tentativa {attempt + 1} falhou: {e}. Aguardando {wait}s...")
-            time.sleep(wait)
-    raise RuntimeError(f"Todas as {max_attempts} tentativas falharam para: {url}")
+def get_soup(url):
+    r = requests.get(url, headers=HEADERS, timeout=20)
+    r.raise_for_status()
+    time.sleep(1)
+    return BeautifulSoup(r.text, "html.parser")
 
 
 def save_raw(df, name):
@@ -73,7 +62,7 @@ def save_raw(df, name):
 
 
 # TABELA DE CLASSIFICAÇÃO (CBF scraping)
-# --------------------------------------------------------
+
 
 
 def extract_tabela():
@@ -135,7 +124,7 @@ def extract_tabela():
 
 
 # ARTILHARIA (CBF scraping)
-# --------------------------------------------------------
+
 def extract_artilharia():
     log.info("► Artilharia (CBF)...")
     soup = get_soup(CBF_URL)
@@ -186,13 +175,14 @@ def extract_artilharia():
             )
 
     df = pd.DataFrame(rows).drop_duplicates(subset=["posicao", "jogador"])
+    df = df[["posicao", "jogador", "gols", "clube"]]  # garante só as 4 colunas certas
     df = df.sort_values("posicao").reset_index(drop=True)
     save_raw(df, "artilharia")
     return df
 
 
 # PARTIDAS (PDF oficial da CBF)
-# --------------------------------------------------------
+
 def extract_partidas():
     log.info(f"► Partidas (PDF: {os.path.basename(PDF_PATH)})...")
 
@@ -231,6 +221,8 @@ def extract_partidas():
 
                     data_clean = data.split("\n")[0].strip()
                     hora_clean = hora if hora not in ["A def.", "None", ""] else None
+
+                    # o regex aqui oh
 
                     m = re.match(r"^(.+?)\s+(\d+)\s+x\s+(\d+)\s+(.+)$", jogo)
                     if m:
@@ -271,24 +263,8 @@ def extract_partidas():
 
 
 # PLACARES VIA PLAYWRIGHT (CBF — complementa o PDF)
-# O site da CBF renderiza os jogos via JavaScript, então requests
-# + BeautifulSoup só vê HTML estático sem placares. O Playwright
-# abre um browser headless real, espera o JS carregar e extrai
-# o HTML completo com todos os resultados.
-#
-# Estratégia de extração (em cascata):
-#   1. data-jogo attribute nos blocos de jogo
-#   2. Links /jogos/campeonato-brasileiro/REF
-#   3. Match por nome de time no texto renderizado
-# ----------------------------------------------------------
-def scrape_placares_cbf(df_partidas: pd.DataFrame) -> pd.DataFrame:
-    """
-    Recebe o DataFrame completo de partidas (vindo do PDF) e tenta
-    atualizar gols_mandante / gols_visitante com os resultados já
-    publicados no site da CBF, usando Playwright para renderizar o JS.
 
-    Retorna o DataFrame com os placares preenchidos onde disponíveis.
-    """
+def scrape_placares_cbf(df_partidas: pd.DataFrame) -> pd.DataFrame:
     log.info("► Buscando placares no site da CBF (Playwright)...")
 
     df = df_partidas.copy()
@@ -311,7 +287,6 @@ def scrape_placares_cbf(df_partidas: pd.DataFrame) -> pd.DataFrame:
             log.info(f"  → Abrindo {CBF_URL} ...")
             page.goto(CBF_URL, wait_until="networkidle", timeout=60000)
 
-            # Espera a tabela de classificação aparecer (confirma que JS rodou)
             try:
                 page.wait_for_selector("table", timeout=15000)
             except Exception:
@@ -393,7 +368,6 @@ def scrape_placares_cbf(df_partidas: pd.DataFrame) -> pd.DataFrame:
 
 # MAIN
 
-
 def run():
     log.info("=" * 60)
     log.info("  Brasileirão 2026 Pipeline — Extração")
@@ -402,7 +376,6 @@ def run():
 
     results = {}
 
-    # Etapas independentes de scraping
     for name, func in [
         ("tabela", extract_tabela),
         ("artilharia", extract_artilharia),
@@ -412,11 +385,9 @@ def run():
         except Exception as e:
             log.error(f"  ✘ Erro em '{name}': {e}")
 
-    # Partidas: PDF + complemento de placares via scraping
     try:
         df_partidas = extract_partidas()
 
-        # Tenta enriquecer com placares do site (falha silenciosa: mantém o PDF)
         try:
             df_partidas = scrape_placares_cbf(df_partidas)
         except Exception as e:
