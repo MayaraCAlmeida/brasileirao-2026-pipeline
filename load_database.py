@@ -1,12 +1,10 @@
 # Carga no PostgreSQL com upsert
 
 import os
-import time
 import logging
 import pandas as pd
 from sqlalchemy import create_engine, text, MetaData, Table, inspect
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.exc import OperationalError
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -24,7 +22,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-# Colunas que devem ser inteiras
+# essas colunas devem ser inteiras
 INT_COLS = {
     "gols_mandante",
     "gols_visitante",
@@ -47,7 +45,7 @@ INT_COLS = {
     "pontos_recentes",
 }
 
-# Colunas que devem ser string
+# essas colunas devem ser string
 STR_COLS = {
     "ref",
     "time",
@@ -81,8 +79,9 @@ def fix_row(row: dict) -> dict:
         elif k in STR_COLS:
             out[k] = str(v) if not (isinstance(v, float) and v != v) else None
         else:
+            # aqui é pra preservar o tipo, mas converte numpy para Python
             try:
-                out[k] = v.item()  # np.generic → Python nativo
+                out[k] = v.item()  # isso é só um np.generic - Python nativo
             except AttributeError:
                 out[k] = v
     return out
@@ -102,35 +101,17 @@ def get_engine():
     return create_engine(url, pool_pre_ping=True)
 
 
-def execute_with_retry(engine, statement: str, max_attempts: int = 3):
-    """Executa um statement SQL com retry em caso de deadlock."""
-    for attempt in range(max_attempts):
-        try:
-            with engine.begin() as conn:
-                conn.execute(text(statement))
-            return
-        except OperationalError as e:
-            if "deadlock" in str(e).lower() and attempt < max_attempts - 1:
-                wait = 2**attempt  # 1s, 2s, 4s...
-                log.warning(
-                    f"  ⚠ Deadlock detectado, tentativa {attempt + 1}/{max_attempts}. Aguardando {wait}s..."
-                )
-                time.sleep(wait)
-            else:
-                raise
-
-
 def run_sql_file(engine, path: str):
-    """Executa cada statement do arquivo SQL separadamente, com retry em deadlock."""
     if not os.path.exists(path):
         log.warning(f"  SQL não encontrado: {path}")
         return False
     with open(path, encoding="utf-8") as f:
         sql = f.read()
-    for stmt in sql.split(";"):
-        s = stmt.strip()
-        if s:
-            execute_with_retry(engine, s)
+    with engine.begin() as conn:
+        for stmt in sql.split(";"):
+            s = stmt.strip()
+            if s:
+                conn.execute(text(s))
     log.info(f"  ✔ SQL executado: {os.path.basename(path)}")
     return True
 
@@ -153,6 +134,7 @@ def upsert_table(
 
     with engine.begin() as conn:
         for i in range(0, total, chunk_size):
+            # aqui converte cada linha para tipos Python nativos via fix_row
             chunk = [
                 fix_row(r)
                 for r in df.iloc[i : i + chunk_size].to_dict(orient="records")
