@@ -1,0 +1,8 @@
+pdfplumber
+playwright==1.44.0
+requests
+beautifulsoup4
+pandas
+psycopg2-binary
+sqlalchemy
+python-dotenv
