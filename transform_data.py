@@ -1,12 +1,12 @@
 # Transformação & Feature Engineering
 
 # Métricas calculadas:
-#  - Performance Score por time (pontos, saldo, aproveitamento normalizado)
+#  - Performance Score por time (pontos, saldo, aproveitamento corrigido)
 #  - Forma recente (últimas 5 rodadas)
 #  - Analise de jogos em casa e fora
 #  - Consistência ofensiva e defensiva
 #  - Gols por rodada
-#  - Probabilidades via Monte Carlo
+
 
 import os
 import logging
@@ -28,26 +28,49 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 
-# Métricas
+# Métricas 
 def compute_performance_score(row) -> float:
     """
     Performance Score = (aproveitamento × 0.5) + (saldo_gols_norm × 0.3) + (gols_pro_norm × 0.2)
     Normalizado por jogo, de 0 a 100.
     """
-    apr = row.get("aproveitamento", 0) or 0
-    saldo = row.get("saldo_gols_calc", 0) or 0
-    gols = row.get("total_gols_pro", 0) or 0
-    jogos = max(row.get("total_jogos", 1), 1)
+    # `row.get("aproveitamento", 0) or 0` não pega NaN - bool(nan) é
+    # True, então "nan or 0" retorna nan, não 0. Isso é o que causou o
+    # Santos virar 100 de perfomance score estando todo lascado no campeonato
+    # o aproveitamento vinha NaN do merge (nome não batia) e
+    # passava disfarçado de "verdadeiro" por esse `or`, e depois
+    # min(100, nan) silenciosamente retornou 100 (comparação com nan é
+    # sempre False, então o min "não troca" o valor). Agora chequei o NaN
+    # explicitamente com pd.isna antes de aplicar o default. Santos com 100 nao da né
+    apr = row.get("aproveitamento")
+    apr = 0 if pd.isna(apr) else apr
+
+    saldo = row.get("saldo_gols_calc")
+    saldo = 0 if pd.isna(saldo) else saldo
+
+    gols = row.get("total_gols_pro")
+    gols = 0 if pd.isna(gols) else gols
+
+    jogos = row.get("total_jogos", 1)
+    jogos = 1 if pd.isna(jogos) else jogos
+    jogos = max(jogos, 1)
 
     saldo_pg = saldo / jogos
     gols_pg = gols / jogos
 
     score = (apr * 0.5) + (saldo_pg * 5 + 50) * 0.3 + (gols_pg * 10) * 0.2
+
+    # min/max com nan é traiçoeiro (comparação com nan é sempre
+    # False), então chequei nan explicitamente antes de aplicar os limites,
+    # em vez de confiar em min(100, score) para "capar" um valor inválido.
+    if pd.isna(score):
+        return 0.0
     return round(max(0, min(100, score)), 2)
 
 
 def build_team_stats(df_fin: pd.DataFrame, df_tabela: pd.DataFrame) -> pd.DataFrame:
     """Agrega estatísticas por time a partir das partidas finalizadas."""
+    # chaves reais: "mandante", "visitante", "resultado_mandante", "resultado_visitante"
     todos_times = pd.concat([df_fin["mandante"], df_fin["visitante"]]).dropna().unique()
 
     records = []
@@ -115,13 +138,25 @@ def build_team_stats(df_fin: pd.DataFrame, df_tabela: pd.DataFrame) -> pd.DataFr
         (df["total_vitorias"] * 3 + df["total_empates"]) / (df["total_jogos"] * 3) * 100
     ).round(1)
 
-    # Merge com tabela oficial — chave real é "time"
+    # Merge com tabela oficial - chave real é "time"
     if not df_tabela.empty:
         df = df.merge(
             df_tabela[["time", "posicao", "pontos", "aproveitamento"]],
             on="time",
             how="left",
         )
+
+        # validação pós-merge. Se `clean_data.py` normalizar os
+        # nomes corretamente, isso nunca deve disparar mas se um nome novo
+        # aparecer (time subiu p série A, mudança de nome no site da CBF, etc.),
+        # quero ver isso no log ANTES de virar um outlier no dashboard,
+        # não descobrir olhando o gráfico publicado. Pq nem sempre posso olhar né
+        sem_match = df.loc[df["posicao"].isna(), "time"].tolist()
+        if sem_match:
+            log.error(
+                f"  ✘ Times sem correspondência em 'tabela' (nome não bateu "
+                f"no merge — cheque NOME_MAP em clean_data.py): {sem_match}"
+            )
 
     df["performance_score"] = df.apply(compute_performance_score, axis=1)
     df = df.sort_values("posicao").reset_index(drop=True)
@@ -174,6 +209,7 @@ def build_forma_recente(df_fin: pd.DataFrame, n_rodadas: int = 5) -> pd.DataFram
 
 def build_gols_por_rodada(df_fin: pd.DataFrame) -> pd.DataFrame:
     """Média de gols por rodada (tendência da competição)."""
+    # a chave real é "ref", não "partida_id"; "total_gols" que já existe no módulo 2
     rodada_stats = (
         df_fin.groupby("rodada")
         .agg(
@@ -188,7 +224,7 @@ def build_gols_por_rodada(df_fin: pd.DataFrame) -> pd.DataFrame:
     return rodada_stats
 
 
-# Main
+# ─── Main ─────────────────────────────────────────────────────────────────────
 def run():
     log.info("=" * 60)
     log.info("  Brasileirão 2026 Pipeline — Transformação")
@@ -221,16 +257,6 @@ def run():
 
     except Exception as e:
         log.error(f"  ✘ Erro na transformação: {e}", exc_info=True)
-
-    # Monte Carlo — roda separado para não travar o pipeline se falhar
-    try:
-        log.info("► Simulação Monte Carlo (probabilidades)...")
-        from monte_carlo import run as mc_run
-
-        df_prob = mc_run()
-        results["probabilidades"] = df_prob
-    except Exception as e:
-        log.error(f"  ✘ Erro no Monte Carlo: {e}", exc_info=True)
 
     log.info("=" * 60)
     log.info(f"  Concluído. {len(results)} datasets gerados.")
