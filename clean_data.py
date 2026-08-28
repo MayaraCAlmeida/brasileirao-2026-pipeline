@@ -21,7 +21,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-# Mapa: nome com UF (partidas) → nome oficial (tabela CBF)
+# Mapa: nome com UF (partidas) = nome oficial (tabela CBF)
 NOME_MAP = {
     "Athletico PR": "Athletico Paranaense",
     "Atlético MG": "Atlético Mineiro",
@@ -44,6 +44,35 @@ NOME_MAP = {
     "Vasco da Gama RJ": "Vasco da Gama Saf",
     "Vitória BA": "Vitória",
 }
+
+# mapa inverso, para o caso de a tabela de classificação vir com o
+# nome oficial "puro" do CBF (ex.: "Fluminense") e as partidas virem com o nome
+# oficial mapeado (ex.: "Fluminense FFC"). Apliquei os dois mapas na tabela para
+# garantir que ela acabe usando exatamente as mesmas strings que `partidas`.
+NOME_MAP_INVERSO = {v: v for v in NOME_MAP.values()}
+
+
+def normaliza_nome_time(nome: str) -> str:
+    """Garante que qualquer variação de nome de time vire o nome canônico
+    usado em NOME_MAP.values() — o mesmo canônico usado em `partidas`."""
+    if not isinstance(nome, str):
+        return nome
+    nome = nome.strip()
+    # Se já é um nome cru que está nas chaves do NOME_MAP, mapeia direto.
+    if nome in NOME_MAP:
+        return NOME_MAP[nome]
+    # Se já é um nome canônico (valor do NOME_MAP), mantém.
+    if nome in NOME_MAP_INVERSO:
+        return nome
+    # Caso não bata com nada conhecido, aqui tenta casar ignorando "SP"/"RJ"/etc.
+    # no fim da string (ex.: site da CBF muda o formato sem avisar, não é mole não).
+    partes = nome.rsplit(" ", 1)
+    if len(partes) == 2 and partes[1].isupper() and len(partes[1]) == 2:
+        base = partes[0]
+        for chave, valor in NOME_MAP.items():
+            if chave.startswith(base):
+                return valor
+    return nome
 
 
 def latest_file(prefix: str) -> str:
@@ -78,8 +107,21 @@ def clean_tabela(df: pd.DataFrame) -> pd.DataFrame:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
     df = df.dropna(subset=["posicao", "time"])
+
+    # normaliza o nome do time para o mesmo canônico usado
+
+    df["time"] = df["time"].map(normaliza_nome_time)
+
     df = df.sort_values("posicao").reset_index(drop=True)
     log.info(f"  → {len(df)} times na tabela")
+
+    # log explícito se sobrar algum nome que não bateu com nada e
+    # assim um problema de nome aparece no log, não como outlier no gráfico.
+    nomes_conhecidos = set(NOME_MAP.values())
+    desconhecidos = sorted(set(df["time"]) - nomes_conhecidos)
+    if desconhecidos:
+        log.warning(f"  ⚠ Nomes de time não normalizados: {desconhecidos}")
+
     return df
 
 
@@ -163,6 +205,9 @@ def run():
 
     try:
         df_art = pd.read_csv(latest_file("artilharia"))
+        df_art = df_art.loc[
+            :, ~df_art.columns.str.strip().eq("")
+        ]  # aqui é pra remover as colunas vazias
         results["artilharia"] = clean_artilharia(df_art)
         save_processed(results["artilharia"], "artilharia")
     except Exception as e:
