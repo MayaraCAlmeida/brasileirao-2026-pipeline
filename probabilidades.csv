@@ -1,21 +1,21 @@
 time,posicao,pontos,prob_campeao,prob_libertadores,prob_sulamericana,prob_rebaixamento
-Palmeiras,1,51,99.6,100.0,0.0,0.0
-Flamengo,2,45,94.7,99.1,0.9,0.0
-Athletico Paranaense,3,44,76.0,93.8,6.2,0.0
-Fluminense,4,41,63.7,88.1,11.9,0.0
-Cruzeiro,5,39,19.6,53.4,46.6,0.0
-Bahia,6,37,11.4,39.5,60.2,0.3
-Atlético Mineiro,7,36,13.3,42.1,57.6,0.3
-Red Bull Bragantino,8,35,15.5,46.0,53.8,0.2
-Coritiba SAF,9,34,2.7,13.4,84.6,2.0
-Corinthians,10,32,0.9,6.6,87.7,5.8
-São Paulo,11,30,1.2,7.2,85.2,7.6
-Botafogo,12,30,1.2,8.8,85.6,5.6
-Vitória,13,29,0.1,0.7,66.9,32.4
-Santos Fc,14,26,0.1,0.5,62.1,37.3
-Grêmio,15,25,0.0,0.4,54.1,45.5
-Vasco da Gama Saf,16,25,0.0,0.3,49.2,50.5
-Internacional,17,25,0.0,0.0,36.4,63.6
-Mirassol,18,24,0.0,0.2,38.5,61.3
-Remo,19,23,0.0,0.0,12.4,87.5
+Palmeiras,1,52,99.5,100.0,0.0,0.0
+Flamengo,2,48,98.0,99.9,0.1,0.0
+Athletico Paranaense,3,45,78.1,95.2,4.8,0.0
+Fluminense,4,42,63.8,89.6,10.4,0.0
+Bahia,5,40,22.6,62.9,37.0,0.1
+Cruzeiro,6,39,13.1,44.4,55.5,0.2
+Atlético Mineiro,7,36,8.4,33.7,65.8,0.4
+Red Bull Bragantino,8,35,11.3,38.5,61.2,0.4
+Coritiba SAF,9,34,3.3,17.5,80.5,2.1
+Corinthians,10,32,0.3,3.7,87.3,9.0
+São Paulo,11,30,0.6,4.8,84.4,10.8
+Botafogo,12,30,0.6,6.0,85.1,8.9
+Vitória,13,29,0.0,0.3,59.2,40.5
+Santos Fc,14,29,0.2,2.1,78.1,19.8
+Grêmio,15,28,0.1,1.1,70.8,28.1
+Mirassol,16,25,0.0,0.1,40.5,59.4
+Vasco da Gama Saf,17,25,0.0,0.1,40.6,59.3
+Internacional,18,25,0.0,0.0,25.7,74.3
+Remo,19,23,0.0,0.0,13.1,86.9
 Chapecoense,20,14,0.0,0.0,0.0,100.0
